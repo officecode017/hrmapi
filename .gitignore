@@ -1,0 +1,39 @@
+## Build and Compilation artifacts
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+.idea/
+.vscode/
+
+## Test Results and Coverage
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+## Node & Frontend
+frontend/
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+## Environment & Secrets
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+appsettings.Production.json
+*.pfx
+*.pem
+
+## Operating System files
+.DS_Store
+Thumbs.db

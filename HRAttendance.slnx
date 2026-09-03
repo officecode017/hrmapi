@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/HRAttendance.API/HRAttendance.API.csproj" />
+    <Project Path="src/HRAttendance.Business/HRAttendance.Business.csproj" />
+    <Project Path="src/HRAttendance.Data/HRAttendance.Data.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/HRAttendance.IntegrationTests/HRAttendance.IntegrationTests.csproj" />
+    <Project Path="tests/HRAttendance.UnitTests/HRAttendance.UnitTests.csproj" />
+  </Folder>
+</Solution>

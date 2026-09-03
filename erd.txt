@@ -1,0 +1,607 @@
+@startuml Organization_Structure_ERD
+
+!theme plain
+skinparam linetype ortho
+skinparam roundcorner 6
+skinparam shadowing false
+skinparam classFontSize 12
+skinparam classFontName "Segoe UI", Arial, sans-serif
+
+' ====================================================
+' ENTITIES
+' ====================================================
+
+entity "Organizations" as orgs {
+  * **Id** : int <<PK>>
+  --
+  Name : varchar
+  Phone : varchar
+  AddressLine1 : varchar
+  AddressLine2 : varchar
+  Country : varchar
+  State : varchar
+  City : varchar
+  PostalCode : varchar
+  Email : varchar
+  Fax : varchar
+  PoBox : varchar
+  Website : varchar
+  LogoUrl : varchar
+  ContactPerson : varchar
+  Industry : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "AcademicYears" as academic_years {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  StartDate : date
+  EndDate : date
+  IsActive : boolean
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Locations" as locs {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  Name : varchar
+  Country : varchar
+  EmailAlias : varchar
+  Latitude : decimal
+  Longitude : decimal
+  Radius : int
+  TimeZone : int
+  TimeZoneValue : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Holidays" as holidays {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  LocationId : int <<FK, NULL>>
+  AcademicYearId : int <<FK>>
+  Name : varchar
+  Date : date
+  IsOptional : boolean
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "OffDays" as off_days {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  AcademicYearId : int <<FK>>
+  LocationId : int <<FK>>
+  RoleId : int <<FK>>
+  OffDay : varchar
+  WorkDayType : int
+  Week1 : boolean
+  Week2 : boolean
+  Week3 : boolean
+  Week4 : boolean
+  Week5 : boolean
+  Week6 : boolean
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Designations" as desigs {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  Name : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Shifts" as shifts {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * LocationId : int <<FK>>
+  Name : varchar
+  InTime : time
+  OutTime : time
+  IsOvernight : boolean
+  GraceMinutes : int
+  BreakMinutes : int
+  BreakStartTime : time
+  BreakEndTime : time
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Departments" as depts {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  Name : varchar
+  DepartmentHeadId : int <<FK, NULL>>
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Roles" as roles {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  Name : varchar
+  Description : varchar
+  IsActive : boolean
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Employees" as emps {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeCode : varchar
+  FirstName : varchar
+  MiddleName : varchar
+  LastName : varchar
+  FatherName : varchar
+  MotherName : varchar
+  DOB : date
+  Gender : varchar
+  BloodGroup : varchar
+  MaritalStatus : varchar
+  Nationality : varchar
+  Religion : varchar
+  BirthPlace : varchar
+  IdentificationMark : varchar
+  PhotoPath : varchar
+  EmployeeType : varchar
+  Qualification : varchar
+  SkillSet : varchar
+  DeviceId : varchar
+  GSMid : varchar
+  TranscardId : varchar
+  LastSeen : datetime
+  UserStatus : varchar
+  EmployeeStatusMessage : varchar
+  EmployeeLiveMessage : varchar
+  IsGenericAccount : boolean
+  ProfileUpdated : boolean
+  IsActive : boolean
+  ResignationDate : date
+  LastWorkingDay : date
+  ReasonForLeaving : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "EmployeeRoles" as emp_roles {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK>>
+  * RoleId : int <<FK>>
+  --
+  UNIQUE (EmployeeId, RoleId)
+  --
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "PermissionMaster" as perm_masters {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * Name : varchar
+  Description : varchar
+  Category : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "RolePermissions" as role_perms {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * RoleId : int <<FK>>
+  * PermissionId : int <<FK>>
+  --
+  UNIQUE (RoleId, PermissionId)
+  --
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "EmployeeContactDetails" as emp_contacts {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK, UK>>
+  Address : varchar
+  PermanentAddress : varchar
+  City : varchar
+  State : varchar
+  PostalCode : varchar
+  Country : varchar
+  Mobile : varchar
+  WorkTelephone : varchar
+  HomeTelephone : varchar
+  Extension : varchar
+  WorkEmail : varchar
+  OtherEmail : varchar
+  EmergencyContact : varchar
+  EmergencyPerson : varchar
+  HomeLatitude : decimal
+  HomeLongitude : decimal
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "EmployeeProfessionalDetails" as emp_professionals {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK, UK>>
+  DepartmentId : int <<FK>>
+  DesignationId : int <<FK>>
+  LocationId : int <<FK>>
+  ShiftId : int <<FK>>
+  ReportingTo : int <<FK, Employees.Id>>
+  TeamId : int
+  Grade : varchar
+  DateOfJoining : date
+  NatureOfPost : varchar
+  ProbationPeriod : int
+  PromotionDate : date
+  SalaryHikeDate : date
+  UniformIssuedDate : date
+  ReferenceName : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "EmployeeAttendances" as emp_attendances {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK>>
+  * LocationId : int <<FK>>
+  * ShiftId : int <<FK>>
+  * AcademicYearId : int <<FK>>
+  InTime : datetimeoffset
+  OutTime : datetimeoffset
+  DayTotal : decimal
+  InTimeLatitude : decimal
+  InTimeLongitude : decimal
+  OutTimeLatitude : decimal
+  OutTimeLongitude : decimal
+  Remark : varchar
+  ApprovedByClientId : int
+  Status : int
+  CheckInMacId : varchar
+  CheckOutMacId : varchar
+  InPlatform : int
+  OutPlatform : int
+  InNetworkSource : int
+  OutNetworkSource : int
+  AppVersion : varchar
+  PunchCount : int
+  IsProcessedForPayroll : boolean
+  PartitionKey : varchar
+  RowKey : varchar
+  Timestamp : datetimeoffset
+  ETag : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "LeaveTypes" as leave_types {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  Name : varchar
+  Description : varchar
+  IsActive : boolean
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "LeaveSettings" as leave_settings {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * LeaveTypeId : int <<FK>>
+  IsPaid : boolean
+  Gender : varchar
+  MaritalStatus : varchar
+  CanTakeHalfDay : boolean
+  InitialValueDuringProbation : decimal
+  ExcludeHolidays : boolean
+  ExcludeOffDays : boolean
+  IncludeHolidaysOffdaysAfterdays : int
+  MaximumNoConsecutiveLeaveAllowed : int
+  LeaveApplicationBeforeDays : int
+  CarryForwardLeaveCount : decimal
+  IsYearly : boolean
+  AccrualPeriodType : int
+  AccrualPeriod : varchar
+  MaximumAccrualYearlyLeave : decimal
+  Leaves : decimal
+  BackdateAllowed : boolean
+  MaxLeaveMonthly : decimal
+  ProbationPeriod : int
+  AllowedInProbation : boolean
+  WebJobRunDate : datetimeoffset
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "LeaveApplications" as leave_apps {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK>>
+  * LeaveTypeId : int <<FK>>
+  NoOfLeave : decimal
+  LeaveFrom : datetimeoffset
+  LeaveTo : datetimeoffset
+  LeaveApplicationDate : datetimeoffset
+  Status : varchar
+  Reason : varchar
+  ApprovedBy : int
+  PartitionKey : varchar
+  RowKey : varchar
+  Timestamp : datetimeoffset
+  ETag : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "SubLeaveApplications" as sub_leave_apps {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * LeaveApplicationId : int <<FK>>
+  * EmployeeId : int <<FK>>
+  LeaveDate : date
+  Status : varchar
+  IsHalfDay : boolean
+  ApprovedBy : int
+  PartitionKey : varchar
+  RowKey : varchar
+  Timestamp : datetimeoffset
+  ETag : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "EmployeeLeaves" as emp_leaves {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK>>
+  * LeaveTypeId : int <<FK>>
+  * AcademicYearId : int <<FK>>
+  LeaveCredited : decimal
+  LeaveBroughtForward : decimal
+  LeavesTaken : decimal
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "OTSettings" as ot_settings {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  Name : varchar
+  IsOverTimeEnabled : boolean
+  OTStartAfterMinutes : int
+  Multiplier : decimal
+  MaxOTHoursPerDay : decimal
+  MaxOTHoursPerWeek : decimal
+  MaxOTHoursPerMonth : decimal
+  IsActive : boolean
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "OTEntries" as ot_entries {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK>>
+  OTSettingId : int <<FK>>
+  OTDate : date
+  ShiftEndTime : datetimeoffset
+  ActualOutTime : datetimeoffset
+  OTHours : decimal
+  MultiplierApplied : decimal
+  HourlyRate : decimal
+  OTAmount : decimal
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+entity "Notifications" as notifications {
+  * **Id** : int <<PK>>
+  --
+  * OrganizationId : int <<FK>>
+  * EmployeeId : int <<FK>>
+  NotificationHeader : varchar
+  Message : varchar
+  NotificationType : int
+  Date : datetimeoffset
+  ScheduleDate : datetimeoffset
+  IsScheduled : boolean
+  ReadStatus : boolean
+  OfEmployeeId : int <<FK, Employees.Id>>
+  ForManager : boolean
+  Url : varchar
+  Metadata : varchar
+  PartitionKey : varchar
+  RowKey : varchar
+  Timestamp : datetimeoffset
+  ETag : varchar
+  CreatedBy : int
+  CreatedAt : datetime
+  ModifiedBy : int
+  ModifiedAt : datetime
+  IsDeleted : boolean
+}
+
+' ====================================================
+' RELATIONSHIPS
+' ====================================================
+
+' Organization / Calendar
+orgs ||--o{ academic_years : "has cycles"
+orgs ||--o{ locs : "has"
+orgs ||--o{ depts : "has"
+orgs ||--o{ desigs : "defines"
+orgs ||--o{ shifts : "defines"
+orgs ||--o{ holidays : "defines"
+orgs ||--o{ off_days : "defines"
+orgs ||--o{ roles : "defines"
+orgs ||--o{ perm_masters : "defines"
+orgs ||--o{ role_perms : "defines"
+orgs ||--o{ emps : "employs"
+orgs ||--o{ leave_types : "defines"
+orgs ||--o{ ot_settings : "configures"
+orgs ||--o{ emp_attendances : "records"
+orgs ||--o{ notifications : "dispatches"
+
+' Academic year
+academic_years ||--o{ holidays : "calendar for"
+academic_years ||--o{ off_days : "schedule for"
+academic_years ||--o{ emp_attendances : "calendar cycle"
+academic_years ||--o{ emp_leaves : "quota year"
+
+' Location / Shift / Schedule
+locs ||--o{ holidays : "applies to"
+locs ||--o{ off_days : "applies to"
+locs ||--o{ shifts : "has shifts"
+
+roles ||--o{ off_days : "role schedule"
+
+' Employee / Roles
+emps ||--o{ emp_roles : "holds"
+roles ||--o{ emp_roles : "assigned to"
+roles ||--o{ role_perms : "grants"
+perm_masters ||--o{ role_perms : "assigned in"
+
+' Employee profiles
+emps ||--|| emp_contacts : "has contact info (1:1)"
+emps ||--|| emp_professionals : "has professional profile (1:1)"
+
+' Reporting hierarchy
+emps ||--o{ emps : "reports to"
+
+' Department head
+emps ||--o{ depts : "heads"
+
+' Professional assignments
+depts ||--o{ emp_professionals : "department"
+desigs ||--o{ emp_professionals : "designation"
+locs ||--o{ emp_professionals : "base location"
+shifts ||--o{ emp_professionals : "assigned shift"
+
+' Attendance
+emps ||--o{ emp_attendances : "logs daily attendance"
+locs ||--o{ emp_attendances : "attendance location"
+shifts ||--o{ emp_attendances : "shift applied"
+
+' Leave
+leave_types ||--o| leave_settings : "configured by"
+leave_types ||--o{ leave_apps : "type of"
+leave_types ||--o{ emp_leaves : "quota for"
+
+emps ||--o{ leave_apps : "applies for"
+emps ||--o{ emp_leaves : "has balance"
+emps ||--o{ sub_leave_apps : "daily leave for"
+
+leave_apps ||--|{ sub_leave_apps : "daily breakdown"
+
+' Overtime
+ot_settings ||--o{ ot_entries : "governs"
+emps ||--o{ ot_entries : "accrues overtime"
+
+' Notifications
+emps ||--o{ notifications : "receives"
+emps ||--o{ notifications : "subject of (OfEmployeeId)"
+
+permission_master ||--o{ role_permissions : "assigned to"
+roles ||--o{ role_permissions : "has permissions"
+
+@enduml
