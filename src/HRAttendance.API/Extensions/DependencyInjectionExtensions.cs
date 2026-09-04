@@ -48,6 +48,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IAcademicYearService, AcademicYearService>();
         services.AddScoped<IOffDayService, OffDayService>();
         services.AddScoped<ILeaveTypeService, LeaveTypeService>();
+        services.AddScoped<IDashboardService, DashboardService>();
 
         return services;
     }

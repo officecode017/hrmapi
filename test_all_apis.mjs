@@ -459,6 +459,12 @@ async function runSuite() {
 
   await makeRequest('GET', `/api/attendance/history?employeeId=${employeeId}`, authHeader, null, step++, 'Get 30-Day Attendance History with Overtime Remarks');
 
+  // 15.1 Employee Dashboard & Unified Calendar
+  await makeRequest('GET', '/api/dashboard/employee', authHeader, null, step++, 'Get Logged-in Employee Dashboard Summary');
+  await makeRequest('GET', `/api/dashboard/employee/${employeeId}`, authHeader, null, step++, `Get Employee ${employeeId} Dashboard Summary (Admin)`);
+  await makeRequest('GET', '/api/dashboard/employee/calendar', authHeader, null, step++, 'Get Employee Current Month Unified Calendar');
+  await makeRequest('GET', `/api/dashboard/employee/${employeeId}/calendar?year=2026&month=9`, authHeader, null, step++, `Get Employee ${employeeId} September 2026 Unified Calendar Matrix`);
+
   // 16. Overtime Workflow
   await makeRequest('POST', '/api/overtime/record', authHeader, {
     employeeId,

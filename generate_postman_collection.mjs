@@ -19,6 +19,7 @@ function getCategory(title, endpoint, method) {
     return '4. Employee Management';
   }
   if (endpoint.includes('/api/attendance')) return '5. Attendance & Geofence';
+  if (endpoint.includes('/api/dashboard')) return '5.1 Employee Dashboard & Calendar';
   if (endpoint.includes('/api/overtime')) return '6. Overtime Workflow';
   if (endpoint.includes('/api/leave')) return '7. Leave Management';
   if (endpoint.includes('/api/notification')) return '8. Notifications';

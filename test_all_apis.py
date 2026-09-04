@@ -487,6 +487,18 @@ def run_suite():
     step += 1
 
     # --------------------------------------------------------------------------
+    # PHASE 5.1: EMPLOYEE DASHBOARD & UNIFIED CALENDAR
+    # --------------------------------------------------------------------------
+    make_request("GET", "/api/dashboard/employee", auth_header, None, step, "Get Logged-in Employee Dashboard Summary")
+    step += 1
+    make_request("GET", f"/api/dashboard/employee/{employee_id}", auth_header, None, step, f"Get Employee {employee_id} Dashboard Summary (Admin)")
+    step += 1
+    make_request("GET", "/api/dashboard/employee/calendar", auth_header, None, step, "Get Employee Current Month Unified Calendar")
+    step += 1
+    make_request("GET", f"/api/dashboard/employee/{employee_id}/calendar?year=2026&month=9", auth_header, None, step, f"Get Employee {employee_id} September 2026 Unified Calendar Matrix")
+    step += 1
+
+    # --------------------------------------------------------------------------
     # PHASE 6: OVERTIME APPROVAL WORKFLOW
     # --------------------------------------------------------------------------
     manual_ot_payload = {
