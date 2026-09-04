@@ -53,7 +53,20 @@ public class LeaveService : ILeaveService
             return ApiResponseDto<LeaveApplicationDto>.Fail("Active academic year not configured.");
         }
 
-        // Check leave balance
+        // 1. BUSINESS RULE: Prevent Overlapping Leave Applications
+        var hasOverlap = await _context.LeaveApplications
+            .AnyAsync(l => l.EmployeeId == request.EmployeeId &&
+                           l.Status != LeaveStatus.Rejected &&
+                           l.Status != "Cancelled" &&
+                           l.LeaveFrom <= request.LeaveTo &&
+                           l.LeaveTo >= request.LeaveFrom, cancellationToken);
+
+        if (hasOverlap)
+        {
+            return ApiResponseDto<LeaveApplicationDto>.Fail("You already have an active or pending leave application overlapping with these dates.");
+        }
+
+        // 2. Check leave balance
         var balance = await _leaveRepository.GetEmployeeLeaveBalanceAsync(request.EmployeeId, request.LeaveTypeId, academicYear.Id, cancellationToken);
         if (balance != null)
         {
@@ -127,21 +140,22 @@ public class LeaveService : ILeaveService
 
     public async Task<ApiResponseDto<List<LeaveApplicationDto>>> GetEmployeeLeavesAsync(int employeeId, CancellationToken cancellationToken = default)
     {
-        var list = await _leaveRepository.GetByEmployeeIdAsync(employeeId, cancellationToken);
+        var applications = await _leaveRepository.GetByEmployeeIdAsync(employeeId, cancellationToken);
 
-        var dtos = list.Select(l => new LeaveApplicationDto
+        var dtos = applications.Select(a => new LeaveApplicationDto
         {
-            Id = l.Id,
-            EmployeeId = l.EmployeeId,
-            EmployeeName = l.Employee != null ? $"{l.Employee.FirstName} {l.Employee.LastName}".Trim() : string.Empty,
-            LeaveTypeId = l.LeaveTypeId,
-            LeaveTypeName = l.LeaveType.Name,
-            NoOfLeave = l.NoOfLeave,
-            LeaveFrom = l.LeaveFrom,
-            LeaveTo = l.LeaveTo,
-            LeaveApplicationDate = l.LeaveApplicationDate,
-            Status = l.Status,
-            Reason = l.Reason
+            Id = a.Id,
+            EmployeeId = a.EmployeeId,
+            EmployeeName = a.Employee != null ? $"{a.Employee.FirstName} {a.Employee.LastName}".Trim() : string.Empty,
+            LeaveTypeId = a.LeaveTypeId,
+            LeaveTypeName = a.LeaveType?.Name ?? string.Empty,
+            NoOfLeave = a.NoOfLeave,
+            LeaveFrom = a.LeaveFrom,
+            LeaveTo = a.LeaveTo,
+            LeaveApplicationDate = a.LeaveApplicationDate,
+            Status = a.Status,
+            Reason = a.Reason,
+            ApproverName = a.Approver != null ? $"{a.Approver.FirstName} {a.Approver.LastName}".Trim() : null
         }).ToList();
 
         return ApiResponseDto<List<LeaveApplicationDto>>.Ok(dtos);
@@ -149,21 +163,22 @@ public class LeaveService : ILeaveService
 
     public async Task<ApiResponseDto<List<LeaveApplicationDto>>> GetPendingLeavesAsync(int organizationId, CancellationToken cancellationToken = default)
     {
-        var list = await _leaveRepository.GetPendingByOrganizationAsync(organizationId, cancellationToken);
+        var applications = await _leaveRepository.GetPendingByOrganizationAsync(organizationId, cancellationToken);
 
-        var dtos = list.Select(l => new LeaveApplicationDto
+        var dtos = applications.Select(a => new LeaveApplicationDto
         {
-            Id = l.Id,
-            EmployeeId = l.EmployeeId,
-            EmployeeName = l.Employee != null ? $"{l.Employee.FirstName} {l.Employee.LastName}".Trim() : string.Empty,
-            LeaveTypeId = l.LeaveTypeId,
-            LeaveTypeName = l.LeaveType.Name,
-            NoOfLeave = l.NoOfLeave,
-            LeaveFrom = l.LeaveFrom,
-            LeaveTo = l.LeaveTo,
-            LeaveApplicationDate = l.LeaveApplicationDate,
-            Status = l.Status,
-            Reason = l.Reason
+            Id = a.Id,
+            EmployeeId = a.EmployeeId,
+            EmployeeName = a.Employee != null ? $"{a.Employee.FirstName} {a.Employee.LastName}".Trim() : string.Empty,
+            LeaveTypeId = a.LeaveTypeId,
+            LeaveTypeName = a.LeaveType?.Name ?? string.Empty,
+            NoOfLeave = a.NoOfLeave,
+            LeaveFrom = a.LeaveFrom,
+            LeaveTo = a.LeaveTo,
+            LeaveApplicationDate = a.LeaveApplicationDate,
+            Status = a.Status,
+            Reason = a.Reason,
+            ApproverName = a.Approver != null ? $"{a.Approver.FirstName} {a.Approver.LastName}".Trim() : null
         }).ToList();
 
         return ApiResponseDto<List<LeaveApplicationDto>>.Ok(dtos);
@@ -215,6 +230,53 @@ public class LeaveService : ILeaveService
         return ApiResponseDto<bool>.Ok(true, $"Leave application {newStatus.ToLower()} successfully.");
     }
 
+    public async Task<ApiResponseDto<bool>> CancelLeaveAsync(int leaveApplicationId, int employeeId, CancellationToken cancellationToken = default)
+    {
+        var application = await _leaveRepository.GetByIdAsync(leaveApplicationId, cancellationToken);
+        if (application == null)
+        {
+            return ApiResponseDto<bool>.Fail("Leave application not found.");
+        }
+
+        if (application.EmployeeId != employeeId)
+        {
+            return ApiResponseDto<bool>.Fail("Unauthorized: You can only cancel your own leave applications.");
+        }
+
+        if (application.Status == "Cancelled")
+        {
+            return ApiResponseDto<bool>.Fail("Leave application is already cancelled.");
+        }
+
+        // If previously approved, refund deducted balance
+        if (application.Status == LeaveStatus.Approved)
+        {
+            var academicYear = await _context.AcademicYears
+                .FirstOrDefaultAsync(a => a.OrganizationId == application.OrganizationId && a.IsActive, cancellationToken);
+
+            if (academicYear != null)
+            {
+                var balance = await _leaveRepository.GetEmployeeLeaveBalanceAsync(application.EmployeeId, application.LeaveTypeId, academicYear.Id, cancellationToken);
+                if (balance != null)
+                {
+                    balance.LeavesTaken = Math.Max(0, balance.LeavesTaken - application.NoOfLeave);
+                    await _leaveRepository.UpdateLeaveBalanceAsync(balance, cancellationToken);
+                }
+            }
+        }
+
+        application.Status = "Cancelled";
+        foreach (var sub in application.SubLeaveApplications)
+        {
+            sub.Status = "Cancelled";
+        }
+
+        await _leaveRepository.UpdateApplicationAsync(application, cancellationToken);
+        _logger.LogInformation("Leave application {AppId} cancelled by employee {EmployeeId}", leaveApplicationId, employeeId);
+
+        return ApiResponseDto<bool>.Ok(true, "Leave application cancelled successfully.");
+    }
+
     public async Task<ApiResponseDto<List<LeaveBalanceDto>>> GetLeaveBalancesAsync(int employeeId, int academicYearId, CancellationToken cancellationToken = default)
     {
         var balances = await _leaveRepository.GetEmployeeLeaveBalancesAsync(employeeId, academicYearId, cancellationToken);
@@ -229,5 +291,43 @@ public class LeaveService : ILeaveService
         }).ToList();
 
         return ApiResponseDto<List<LeaveBalanceDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<bool>> AdjustLeaveBalanceAsync(AdjustLeaveBalanceDto request, CancellationToken cancellationToken = default)
+    {
+        var balance = await _context.EmployeeLeaves
+            .FirstOrDefaultAsync(b => b.EmployeeId == request.EmployeeId &&
+                                      b.LeaveTypeId == request.LeaveTypeId &&
+                                      b.AcademicYearId == request.AcademicYearId, cancellationToken);
+
+        if (balance == null)
+        {
+            var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
+            if (employee == null) return ApiResponseDto<bool>.Fail("Employee not found.");
+
+            balance = new EmployeeLeave
+            {
+                OrganizationId = employee.OrganizationId,
+                EmployeeId = request.EmployeeId,
+                LeaveTypeId = request.LeaveTypeId,
+                AcademicYearId = request.AcademicYearId,
+                LeaveCredited = request.LeaveCredited,
+                LeaveBroughtForward = request.LeaveBroughtForward,
+                LeavesTaken = request.LeavesTaken
+            };
+            await _context.EmployeeLeaves.AddAsync(balance, cancellationToken);
+        }
+        else
+        {
+            balance.LeaveCredited = request.LeaveCredited;
+            balance.LeaveBroughtForward = request.LeaveBroughtForward;
+            balance.LeavesTaken = request.LeavesTaken;
+            _context.EmployeeLeaves.Update(balance);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Leave balance adjusted for employee {EmployeeId}, type {TypeId}: Credited={Credited}, Taken={Taken}", request.EmployeeId, request.LeaveTypeId, request.LeaveCredited, request.LeavesTaken);
+
+        return ApiResponseDto<bool>.Ok(true, "Employee leave balance adjusted successfully.");
     }
 }

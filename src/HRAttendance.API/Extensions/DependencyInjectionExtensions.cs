@@ -42,6 +42,12 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<INotificationService, NotificationService>();
         services.AddScoped<IOvertimeService, OvertimeService>();
+        services.AddScoped<IDepartmentService, DepartmentService>();
+        services.AddScoped<IDesignationService, DesignationService>();
+        services.AddScoped<ILocationService, LocationService>();
+        services.AddScoped<IAcademicYearService, AcademicYearService>();
+        services.AddScoped<IOffDayService, OffDayService>();
+        services.AddScoped<ILeaveTypeService, LeaveTypeService>();
 
         return services;
     }

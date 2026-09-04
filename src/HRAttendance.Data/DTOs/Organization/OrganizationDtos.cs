@@ -7,33 +7,50 @@ public class OrganizationDto
     public string? Phone { get; set; }
     public string? Email { get; set; }
     public string? Website { get; set; }
+    public string? Address { get; set; }
     public string? City { get; set; }
+    public string? State { get; set; }
     public string? Country { get; set; }
+    public string? PostalCode { get; set; }
+    public string? Industry { get; set; }
+    public string? TaxId { get; set; }
+    public string? LogoPath { get; set; }
+    public string? Currency { get; set; }
+    public int? FiscalYearStartMonth { get; set; }
 }
 
-public class DepartmentDto
+public class CreateOrganizationDto
 {
-    public int Id { get; set; }
-    public int OrganizationId { get; set; }
     public string Name { get; set; } = string.Empty;
-    public int? DepartmentHeadId { get; set; }
-    public string? DepartmentHeadName { get; set; }
-}
-
-public class DesignationDto
-{
-    public int Id { get; set; }
-    public int OrganizationId { get; set; }
-    public string Name { get; set; } = string.Empty;
-}
-
-public class LocationDto
-{
-    public int Id { get; set; }
-    public int OrganizationId { get; set; }
-    public string Name { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? Website { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
     public string? Country { get; set; }
-    public decimal? Latitude { get; set; }
-    public decimal? Longitude { get; set; }
-    public int? Radius { get; set; }
+    public string? PostalCode { get; set; }
+    public string? Industry { get; set; }
+    public string? TaxId { get; set; }
+    public string? LogoPath { get; set; }
+    public string? Currency { get; set; } = "USD";
+    public int? FiscalYearStartMonth { get; set; } = 1;
+}
+
+public class UpdateOrganizationDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string? Website { get; set; }
+    public string? Address { get; set; }
+    public string? City { get; set; }
+    public string? State { get; set; }
+    public string? Country { get; set; }
+    public string? PostalCode { get; set; }
+    public string? Industry { get; set; }
+    public string? TaxId { get; set; }
+    public string? LogoPath { get; set; }
+    public string? Currency { get; set; }
+    public int? FiscalYearStartMonth { get; set; }
 }

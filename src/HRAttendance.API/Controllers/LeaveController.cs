@@ -5,6 +5,7 @@ using HRAttendance.Business.BusinessRules;
 using HRAttendance.Business.Interfaces;
 using HRAttendance.Data.DTOs.Common;
 using HRAttendance.Data.DTOs.Leave;
+using HRAttendance.API.Extensions;
 
 namespace HRAttendance.API.Controllers;
 
@@ -81,9 +82,30 @@ public class LeaveController : ControllerBase
         return Ok(result);
     }
 
+    [HttpPost("{id:int}/cancel")]
+    [ProducesResponseType(typeof(ApiResponseDto<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CancelLeave(int id, CancellationToken cancellationToken)
+    {
+        var employeeId = User.TryGetEmployeeId() ?? 1;
+        var result = await _leaveService.CancelLeaveAsync(id, employeeId, cancellationToken);
+        if (!result.Success) return BadRequest(result);
+        return Ok(result);
+    }
+
+    [HttpPost("balances/adjust")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin}")]
+    [ProducesResponseType(typeof(ApiResponseDto<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AdjustLeaveBalance([FromBody] AdjustLeaveBalanceDto request, CancellationToken cancellationToken)
+    {
+        var result = await _leaveService.AdjustLeaveBalanceAsync(request, cancellationToken);
+        if (!result.Success) return BadRequest(result);
+        return Ok(result);
+    }
+
     private int GetCurrentUserId()
     {
-        var claim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        return int.TryParse(claim, out var id) ? id : 1;
+        return User.TryGetEmployeeId() ?? 1;
     }
 }

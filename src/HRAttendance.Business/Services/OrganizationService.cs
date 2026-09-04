@@ -3,6 +3,9 @@ using HRAttendance.Business.Interfaces;
 using HRAttendance.Data;
 using HRAttendance.Data.DTOs.Common;
 using HRAttendance.Data.DTOs.Organization;
+using HRAttendance.Data.DTOs.Department;
+using HRAttendance.Data.DTOs.Designation;
+using HRAttendance.Data.DTOs.Location;
 
 namespace HRAttendance.Business.Services;
 
@@ -33,11 +36,37 @@ public class OrganizationService : IOrganizationService
             Phone = org.Phone,
             Email = org.Email,
             Website = org.Website,
+            Address = org.AddressLine1,
             City = org.City,
-            Country = org.Country
+            State = org.State,
+            Country = org.Country,
+            PostalCode = org.PostalCode,
+            Industry = org.Industry,
+            LogoPath = org.LogoUrl
         };
 
         return ApiResponseDto<OrganizationDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateOrganizationAsync(int id, UpdateOrganizationDto request, CancellationToken cancellationToken = default)
+    {
+        var org = await _context.Organizations.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        if (org == null) return ApiResponseDto<bool>.Fail("Organization not found.");
+
+        org.Name = request.Name.Trim();
+        org.Phone = request.Phone?.Trim();
+        org.Email = request.Email?.Trim();
+        org.Website = request.Website?.Trim();
+        org.AddressLine1 = request.Address?.Trim();
+        org.City = request.City?.Trim();
+        org.State = request.State?.Trim();
+        org.Country = request.Country?.Trim();
+        org.PostalCode = request.PostalCode?.Trim();
+        org.Industry = request.Industry?.Trim();
+        org.LogoUrl = request.LogoPath?.Trim();
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Organization updated successfully.");
     }
 
     public async Task<ApiResponseDto<List<DepartmentDto>>> GetDepartmentsAsync(int organizationId, CancellationToken cancellationToken = default)

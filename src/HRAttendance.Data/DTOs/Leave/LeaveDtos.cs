@@ -1,5 +1,51 @@
 namespace HRAttendance.Data.DTOs.Leave;
 
+public class LeaveSettingDto
+{
+    public int Id { get; set; }
+    public bool IsPaid { get; set; }
+    public decimal Leaves { get; set; }
+    public bool CanTakeHalfDay { get; set; }
+    public decimal CarryForwardLeaveCount { get; set; }
+}
+
+public class LeaveTypeDto
+{
+    public int Id { get; set; }
+    public int OrganizationId { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
+    public LeaveSettingDto? Setting { get; set; }
+}
+
+public class CreateLeaveTypeDto
+{
+    public int OrganizationId { get; set; } = 1;
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    // Associated LeaveSetting
+    public bool IsPaid { get; set; } = true;
+    public decimal Leaves { get; set; } = 12;
+    public bool CanTakeHalfDay { get; set; } = true;
+    public decimal CarryForwardLeaveCount { get; set; } = 0;
+}
+
+public class UpdateLeaveTypeDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string? Description { get; set; }
+    public bool IsActive { get; set; }
+
+    // Associated LeaveSetting
+    public bool IsPaid { get; set; }
+    public decimal Leaves { get; set; }
+    public bool CanTakeHalfDay { get; set; }
+    public decimal CarryForwardLeaveCount { get; set; }
+}
+
 public class CreateLeaveApplicationDto
 {
     public int EmployeeId { get; set; }
@@ -41,4 +87,15 @@ public class LeaveBalanceDto
     public decimal BroughtForward { get; set; }
     public decimal Taken { get; set; }
     public decimal Available => (Credited + BroughtForward) - Taken;
+}
+
+public class AdjustLeaveBalanceDto
+{
+    public int EmployeeId { get; set; }
+    public int LeaveTypeId { get; set; }
+    public int AcademicYearId { get; set; }
+    public decimal LeaveCredited { get; set; }
+    public decimal LeaveBroughtForward { get; set; }
+    public decimal LeavesTaken { get; set; }
+    public string? Remark { get; set; }
 }

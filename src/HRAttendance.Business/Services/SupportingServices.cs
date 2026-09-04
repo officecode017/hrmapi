@@ -7,9 +7,17 @@ using HRAttendance.Data.DTOs.Holiday;
 using HRAttendance.Data.DTOs.Role;
 using HRAttendance.Data.DTOs.Notification;
 using HRAttendance.Data.DTOs.Overtime;
+using HRAttendance.Data.DTOs.Department;
+using HRAttendance.Data.DTOs.Designation;
+using HRAttendance.Data.DTOs.Location;
+using HRAttendance.Data.DTOs.AcademicYear;
+using HRAttendance.Data.DTOs.OffDay;
+using HRAttendance.Data.DTOs.Leave;
 using HRAttendance.Data.Models.Organization;
 using HRAttendance.Data.Models.Security;
 using HRAttendance.Data.Models.Overtime;
+using HRAttendance.Data.Models.Leave;
+using HRAttendance.Data.Models.Employee;
 
 namespace HRAttendance.Business.Services;
 
@@ -26,6 +34,7 @@ public class ShiftService : IShiftService
     {
         var shifts = await _context.Shifts
             .AsNoTracking()
+            .Include(s => s.Location)
             .Where(s => s.OrganizationId == organizationId)
             .ToListAsync(cancellationToken);
 
@@ -34,15 +43,53 @@ public class ShiftService : IShiftService
             Id = s.Id,
             OrganizationId = s.OrganizationId,
             LocationId = s.LocationId,
+            LocationName = s.Location?.Name,
             Name = s.Name,
             InTime = s.InTime,
             OutTime = s.OutTime,
             IsOvernight = s.IsOvernight,
             GraceMinutes = s.GraceMinutes,
-            BreakMinutes = s.BreakMinutes
+            BreakMinutes = s.BreakMinutes,
+            BreakStartTime = s.BreakStartTime,
+            BreakEndTime = s.BreakEndTime
         }).ToList();
 
         return ApiResponseDto<List<ShiftDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<ShiftDto>> GetShiftByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var s = await _context.Shifts
+            .AsNoTracking()
+            .Include(s => s.Location)
+            .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+
+        if (s == null)
+        {
+            s = await _context.Shifts
+                .AsNoTracking()
+                .FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        }
+
+        if (s == null) return ApiResponseDto<ShiftDto>.Fail("Shift not found.");
+
+        var dto = new ShiftDto
+        {
+            Id = s.Id,
+            OrganizationId = s.OrganizationId,
+            LocationId = s.LocationId,
+            LocationName = s.Location?.Name,
+            Name = s.Name,
+            InTime = s.InTime,
+            OutTime = s.OutTime,
+            IsOvernight = s.IsOvernight,
+            GraceMinutes = s.GraceMinutes,
+            BreakMinutes = s.BreakMinutes,
+            BreakStartTime = s.BreakStartTime,
+            BreakEndTime = s.BreakEndTime
+        };
+
+        return ApiResponseDto<ShiftDto>.Ok(dto);
     }
 
     public async Task<ApiResponseDto<ShiftDto>> CreateShiftAsync(CreateShiftDto request, CancellationToken cancellationToken = default)
@@ -56,7 +103,9 @@ public class ShiftService : IShiftService
             OutTime = request.OutTime,
             IsOvernight = request.IsOvernight,
             GraceMinutes = request.GraceMinutes,
-            BreakMinutes = request.BreakMinutes
+            BreakMinutes = request.BreakMinutes,
+            BreakStartTime = request.BreakStartTime,
+            BreakEndTime = request.BreakEndTime
         };
 
         await _context.Shifts.AddAsync(shift, cancellationToken);
@@ -72,10 +121,103 @@ public class ShiftService : IShiftService
             OutTime = shift.OutTime,
             IsOvernight = shift.IsOvernight,
             GraceMinutes = shift.GraceMinutes,
-            BreakMinutes = shift.BreakMinutes
+            BreakMinutes = shift.BreakMinutes,
+            BreakStartTime = shift.BreakStartTime,
+            BreakEndTime = shift.BreakEndTime
         };
 
         return ApiResponseDto<ShiftDto>.Ok(dto, "Shift created successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateShiftAsync(int id, UpdateShiftDto request, CancellationToken cancellationToken = default)
+    {
+        var shift = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        if (shift == null) return ApiResponseDto<bool>.Fail("Shift not found.");
+
+        shift.LocationId = request.LocationId;
+        shift.Name = request.Name.Trim();
+        shift.InTime = request.InTime;
+        shift.OutTime = request.OutTime;
+        shift.IsOvernight = request.IsOvernight;
+        shift.GraceMinutes = request.GraceMinutes;
+        shift.BreakMinutes = request.BreakMinutes;
+        shift.BreakStartTime = request.BreakStartTime;
+        shift.BreakEndTime = request.BreakEndTime;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Shift updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteShiftAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var shift = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        if (shift == null) return ApiResponseDto<bool>.Fail("Shift not found.");
+
+        shift.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Shift deleted successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> AssignShiftAsync(AssignShiftDto request, CancellationToken cancellationToken = default)
+    {
+        var employee = await _context.Employees
+            .Include(e => e.ProfessionalDetails)
+            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
+
+        if (employee == null) return ApiResponseDto<bool>.Fail("Employee not found.");
+
+        var shiftExists = await _context.Shifts.AnyAsync(s => s.Id == request.ShiftId, cancellationToken);
+        if (!shiftExists) return ApiResponseDto<bool>.Fail("Shift not found.");
+
+        if (employee.ProfessionalDetails == null)
+        {
+            employee.ProfessionalDetails = new EmployeeProfessionalDetails
+            {
+                OrganizationId = employee.OrganizationId,
+                EmployeeId = employee.Id,
+                ShiftId = request.ShiftId
+            };
+            await _context.EmployeeProfessionalDetails.AddAsync(employee.ProfessionalDetails, cancellationToken);
+        }
+        else
+        {
+            employee.ProfessionalDetails.ShiftId = request.ShiftId;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Shift assigned successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> BulkAssignShiftAsync(BulkAssignShiftDto request, CancellationToken cancellationToken = default)
+    {
+        var shiftExists = await _context.Shifts.AnyAsync(s => s.Id == request.ShiftId, cancellationToken);
+        if (!shiftExists) return ApiResponseDto<bool>.Fail("Shift not found.");
+
+        var employees = await _context.Employees
+            .Include(e => e.ProfessionalDetails)
+            .Where(e => request.EmployeeIds.Contains(e.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var employee in employees)
+        {
+            if (employee.ProfessionalDetails == null)
+            {
+                employee.ProfessionalDetails = new EmployeeProfessionalDetails
+                {
+                    OrganizationId = employee.OrganizationId,
+                    EmployeeId = employee.Id,
+                    ShiftId = request.ShiftId
+                };
+                await _context.EmployeeProfessionalDetails.AddAsync(employee.ProfessionalDetails, cancellationToken);
+            }
+            else
+            {
+                employee.ProfessionalDetails.ShiftId = request.ShiftId;
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, $"Shift assigned to {employees.Count} employees successfully.");
     }
 }
 
@@ -92,6 +234,7 @@ public class HolidayService : IHolidayService
     {
         var holidays = await _context.Holidays
             .AsNoTracking()
+            .Include(h => h.Location)
             .Where(h => h.OrganizationId == organizationId && h.AcademicYearId == academicYearId)
             .OrderBy(h => h.Date)
             .ToListAsync(cancellationToken);
@@ -100,14 +243,39 @@ public class HolidayService : IHolidayService
         {
             Id = h.Id,
             OrganizationId = h.OrganizationId,
-            LocationId = h.LocationId,
             AcademicYearId = h.AcademicYearId,
+            LocationId = h.LocationId,
+            LocationName = h.Location?.Name,
             Name = h.Name,
             Date = h.Date,
             IsOptional = h.IsOptional
         }).ToList();
 
         return ApiResponseDto<List<HolidayDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<HolidayDto>> GetHolidayByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var h = await _context.Holidays
+            .AsNoTracking()
+            .Include(h => h.Location)
+            .FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+
+        if (h == null) return ApiResponseDto<HolidayDto>.Fail("Holiday not found.");
+
+        var dto = new HolidayDto
+        {
+            Id = h.Id,
+            OrganizationId = h.OrganizationId,
+            AcademicYearId = h.AcademicYearId,
+            LocationId = h.LocationId,
+            LocationName = h.Location?.Name,
+            Name = h.Name,
+            Date = h.Date,
+            IsOptional = h.IsOptional
+        };
+
+        return ApiResponseDto<HolidayDto>.Ok(dto);
     }
 
     public async Task<ApiResponseDto<HolidayDto>> CreateHolidayAsync(CreateHolidayDto request, CancellationToken cancellationToken = default)
@@ -125,18 +293,31 @@ public class HolidayService : IHolidayService
         await _context.Holidays.AddAsync(holiday, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
 
-        var dto = new HolidayDto
-        {
-            Id = holiday.Id,
-            OrganizationId = holiday.OrganizationId,
-            LocationId = holiday.LocationId,
-            AcademicYearId = holiday.AcademicYearId,
-            Name = holiday.Name,
-            Date = holiday.Date,
-            IsOptional = holiday.IsOptional
-        };
+        return await GetHolidayByIdAsync(holiday.Id, cancellationToken);
+    }
 
-        return ApiResponseDto<HolidayDto>.Ok(dto, "Holiday created successfully.");
+    public async Task<ApiResponseDto<bool>> UpdateHolidayAsync(int id, UpdateHolidayDto request, CancellationToken cancellationToken = default)
+    {
+        var holiday = await _context.Holidays.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+        if (holiday == null) return ApiResponseDto<bool>.Fail("Holiday not found.");
+
+        holiday.LocationId = request.LocationId;
+        holiday.Name = request.Name.Trim();
+        holiday.Date = request.Date;
+        holiday.IsOptional = request.IsOptional;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Holiday updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteHolidayAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var holiday = await _context.Holidays.FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
+        if (holiday == null) return ApiResponseDto<bool>.Fail("Holiday not found.");
+
+        holiday.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Holiday deleted successfully.");
     }
 }
 
@@ -153,6 +334,8 @@ public class RoleService : IRoleService
     {
         var roles = await _context.Roles
             .AsNoTracking()
+            .Include(r => r.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
             .Where(r => r.OrganizationId == organizationId)
             .ToListAsync(cancellationToken);
 
@@ -162,10 +345,97 @@ public class RoleService : IRoleService
             OrganizationId = r.OrganizationId,
             Name = r.Name,
             Description = r.Description,
-            IsActive = r.IsActive
+            IsActive = r.IsActive,
+            Permissions = r.RolePermissions.Select(rp => new PermissionDto
+            {
+                Id = rp.PermissionId,
+                Module = rp.Permission?.Category ?? "General",
+                Action = rp.Permission?.Name ?? string.Empty,
+                Description = rp.Permission?.Description
+            }).ToList()
         }).ToList();
 
         return ApiResponseDto<List<RoleDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<RoleDto>> GetRoleByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var r = await _context.Roles
+            .AsNoTracking()
+            .Include(r => r.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
+            .FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+
+        if (r == null) return ApiResponseDto<RoleDto>.Fail("Role not found.");
+
+        var dto = new RoleDto
+        {
+            Id = r.Id,
+            OrganizationId = r.OrganizationId,
+            Name = r.Name,
+            Description = r.Description,
+            IsActive = r.IsActive,
+            Permissions = r.RolePermissions.Select(rp => new PermissionDto
+            {
+                Id = rp.PermissionId,
+                Module = rp.Permission?.Category ?? "General",
+                Action = rp.Permission?.Name ?? string.Empty,
+                Description = rp.Permission?.Description
+            }).ToList()
+        };
+
+        return ApiResponseDto<RoleDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<RoleDto>> CreateRoleAsync(CreateRoleDto request, CancellationToken cancellationToken = default)
+    {
+        var role = new Role
+        {
+            OrganizationId = request.OrganizationId,
+            Name = request.Name.Trim(),
+            Description = request.Description?.Trim(),
+            IsActive = request.IsActive
+        };
+
+        if (request.PermissionIds.Any())
+        {
+            foreach (var permId in request.PermissionIds)
+            {
+                role.RolePermissions.Add(new RolePermission
+                {
+                    OrganizationId = request.OrganizationId,
+                    PermissionId = permId
+                });
+            }
+        }
+
+        await _context.Roles.AddAsync(role, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await GetRoleByIdAsync(role.Id, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateRoleAsync(int id, UpdateRoleDto request, CancellationToken cancellationToken = default)
+    {
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (role == null) return ApiResponseDto<bool>.Fail("Role not found.");
+
+        role.Name = request.Name.Trim();
+        role.Description = request.Description?.Trim();
+        role.IsActive = request.IsActive;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Role updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteRoleAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == id, cancellationToken);
+        if (role == null) return ApiResponseDto<bool>.Fail("Role not found.");
+
+        role.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Role deleted successfully.");
     }
 
     public async Task<ApiResponseDto<bool>> AssignRoleAsync(AssignRoleDto request, CancellationToken cancellationToken = default)
@@ -190,6 +460,829 @@ public class RoleService : IRoleService
         }
 
         return ApiResponseDto<bool>.Ok(true, "Role assigned successfully.");
+    }
+
+    public async Task<ApiResponseDto<List<PermissionDto>>> GetPermissionsAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var perms = await _context.PermissionMasters
+            .AsNoTracking()
+            .Where(p => p.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        var dtos = perms.Select(p => new PermissionDto
+        {
+            Id = p.Id,
+            Module = p.Category ?? "General",
+            Action = p.Name,
+            Description = p.Description
+        }).ToList();
+
+        return ApiResponseDto<List<PermissionDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<bool>> AssignRolePermissionsAsync(AssignRolePermissionsDto request, CancellationToken cancellationToken = default)
+    {
+        var role = await _context.Roles
+            .Include(r => r.RolePermissions)
+            .FirstOrDefaultAsync(r => r.Id == request.RoleId, cancellationToken);
+
+        if (role == null) return ApiResponseDto<bool>.Fail("Role not found.");
+
+        _context.RolePermissions.RemoveRange(role.RolePermissions);
+
+        foreach (var permId in request.PermissionIds)
+        {
+            role.RolePermissions.Add(new RolePermission
+            {
+                OrganizationId = role.OrganizationId,
+                RoleId = role.Id,
+                PermissionId = permId
+            });
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Role permissions updated successfully.");
+    }
+}
+
+public class OvertimeService : IOvertimeService
+{
+    private readonly ApplicationDbContext _context;
+
+    public OvertimeService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApiResponseDto<OTSettingDto?>> GetSettingsAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var setting = await _context.OTSettings
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.OrganizationId == organizationId && s.IsActive, cancellationToken);
+
+        if (setting == null) return ApiResponseDto<OTSettingDto?>.Ok(null);
+
+        var dto = new OTSettingDto
+        {
+            Id = setting.Id,
+            OrganizationId = setting.OrganizationId,
+            Name = setting.Name,
+            IsOverTimeEnabled = setting.IsOverTimeEnabled,
+            OTStartAfterMinutes = setting.OTStartAfterMinutes,
+            Multiplier = setting.Multiplier,
+            MaxOTHoursPerDay = setting.MaxOTHoursPerDay ?? 4.00m,
+            IsActive = setting.IsActive
+        };
+
+        return ApiResponseDto<OTSettingDto?>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<OTSettingDto>> CreateOTSettingAsync(CreateOTSettingDto request, CancellationToken cancellationToken = default)
+    {
+        var setting = new OTSetting
+        {
+            OrganizationId = request.OrganizationId,
+            Name = request.Name.Trim(),
+            IsOverTimeEnabled = request.IsOverTimeEnabled,
+            OTStartAfterMinutes = request.OTStartAfterMinutes,
+            Multiplier = request.Multiplier,
+            MaxOTHoursPerDay = request.MaxOTHoursPerDay,
+            IsActive = request.IsActive
+        };
+
+        await _context.OTSettings.AddAsync(setting, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var dto = new OTSettingDto
+        {
+            Id = setting.Id,
+            OrganizationId = setting.OrganizationId,
+            Name = setting.Name,
+            IsOverTimeEnabled = setting.IsOverTimeEnabled,
+            OTStartAfterMinutes = setting.OTStartAfterMinutes,
+            Multiplier = setting.Multiplier,
+            MaxOTHoursPerDay = setting.MaxOTHoursPerDay ?? 4.00m,
+            IsActive = setting.IsActive
+        };
+
+        return ApiResponseDto<OTSettingDto>.Ok(dto, "OT Settings created successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateOTSettingAsync(int id, UpdateOTSettingDto request, CancellationToken cancellationToken = default)
+    {
+        var setting = await _context.OTSettings.FirstOrDefaultAsync(s => s.Id == id, cancellationToken);
+        if (setting == null) return ApiResponseDto<bool>.Fail("OT Setting not found.");
+
+        setting.Name = request.Name.Trim();
+        setting.IsOverTimeEnabled = request.IsOverTimeEnabled;
+        setting.OTStartAfterMinutes = request.OTStartAfterMinutes;
+        setting.Multiplier = request.Multiplier;
+        setting.MaxOTHoursPerDay = request.MaxOTHoursPerDay;
+        setting.IsActive = request.IsActive;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "OT Setting updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> RecordOTEntryAsync(CreateOTEntryDto request, CancellationToken cancellationToken = default)
+    {
+        var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
+        if (employee == null) return ApiResponseDto<bool>.Fail("Employee not found.");
+
+        var setting = await _context.OTSettings.FirstOrDefaultAsync(s => s.Id == request.OTSettingId, cancellationToken);
+        if (setting == null) return ApiResponseDto<bool>.Fail("OT Setting not found.");
+
+        var entry = new OTEntry
+        {
+            OrganizationId = employee.OrganizationId,
+            EmployeeId = request.EmployeeId,
+            OTSettingId = request.OTSettingId,
+            OTDate = request.OTDate,
+            OTHours = request.OTHours,
+            MultiplierApplied = setting.Multiplier,
+            HourlyRate = request.HourlyRate,
+            OTAmount = Math.Round(request.OTHours * request.HourlyRate * setting.Multiplier, 2)
+        };
+
+        await _context.OTEntries.AddAsync(entry, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return ApiResponseDto<bool>.Ok(true, "OT Entry recorded successfully.");
+    }
+
+    public async Task<ApiResponseDto<List<OTEntryDto>>> GetPendingOTEntriesAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var entries = await _context.OTEntries
+            .AsNoTracking()
+            .Include(o => o.Employee)
+            .Include(o => o.OTSetting)
+            .Where(o => o.OrganizationId == organizationId)
+            .OrderByDescending(o => o.OTDate)
+            .ToListAsync(cancellationToken);
+
+        var dtos = entries.Select(o => new OTEntryDto
+        {
+            Id = o.Id,
+            OrganizationId = o.OrganizationId,
+            EmployeeId = o.EmployeeId,
+            EmployeeName = $"{o.Employee.FirstName} {o.Employee.LastName}".Trim(),
+            OTSettingId = o.OTSettingId,
+            OTSettingName = o.OTSetting?.Name,
+            OTDate = o.OTDate,
+            OTHours = o.OTHours,
+            MultiplierApplied = o.MultiplierApplied,
+            HourlyRate = o.HourlyRate,
+            OTAmount = o.OTAmount,
+            Status = o.ModifiedBy.HasValue ? "Approved" : "Pending"
+        }).ToList();
+
+        return ApiResponseDto<List<OTEntryDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<bool>> ProcessOTApprovalAsync(int id, int approverId, ApproveOTEntryDto request, CancellationToken cancellationToken = default)
+    {
+        var entry = await _context.OTEntries.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        if (entry == null) return ApiResponseDto<bool>.Fail("OT Entry not found.");
+
+        if (request.IsApproved)
+        {
+            entry.ModifiedBy = approverId;
+            entry.ModifiedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            entry.IsDeleted = true; // Rejected entry removed from calculations
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, request.IsApproved ? "OT Entry approved successfully." : "OT Entry rejected.");
+    }
+}
+
+public class DepartmentService : IDepartmentService
+{
+    private readonly ApplicationDbContext _context;
+
+    public DepartmentService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApiResponseDto<List<DepartmentDto>>> GetDepartmentsAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var departments = await _context.Departments
+            .AsNoTracking()
+            .Include(d => d.DepartmentHead)
+            .Where(d => d.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        var dtos = departments.Select(d => new DepartmentDto
+        {
+            Id = d.Id,
+            OrganizationId = d.OrganizationId,
+            Name = d.Name,
+            DepartmentHeadId = d.DepartmentHeadId,
+            DepartmentHeadName = d.DepartmentHead != null ? $"{d.DepartmentHead.FirstName} {d.DepartmentHead.LastName}".Trim() : null
+        }).ToList();
+
+        return ApiResponseDto<List<DepartmentDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<DepartmentDto>> GetDepartmentByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var d = await _context.Departments
+            .AsNoTracking()
+            .Include(d => d.DepartmentHead)
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
+        if (d == null) return ApiResponseDto<DepartmentDto>.Fail("Department not found.");
+
+        var dto = new DepartmentDto
+        {
+            Id = d.Id,
+            OrganizationId = d.OrganizationId,
+            Name = d.Name,
+            DepartmentHeadId = d.DepartmentHeadId,
+            DepartmentHeadName = d.DepartmentHead != null ? $"{d.DepartmentHead.FirstName} {d.DepartmentHead.LastName}".Trim() : null
+        };
+
+        return ApiResponseDto<DepartmentDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<DepartmentDto>> CreateDepartmentAsync(CreateDepartmentDto request, CancellationToken cancellationToken = default)
+    {
+        var department = new Department
+        {
+            OrganizationId = request.OrganizationId,
+            Name = request.Name.Trim(),
+            DepartmentHeadId = request.DepartmentHeadId
+        };
+
+        await _context.Departments.AddAsync(department, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await GetDepartmentByIdAsync(department.Id, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateDepartmentAsync(int id, UpdateDepartmentDto request, CancellationToken cancellationToken = default)
+    {
+        var department = await _context.Departments.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (department == null) return ApiResponseDto<bool>.Fail("Department not found.");
+
+        department.Name = request.Name.Trim();
+        department.DepartmentHeadId = request.DepartmentHeadId;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Department updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteDepartmentAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var department = await _context.Departments.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (department == null) return ApiResponseDto<bool>.Fail("Department not found.");
+
+        department.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Department deleted successfully.");
+    }
+}
+
+public class DesignationService : IDesignationService
+{
+    private readonly ApplicationDbContext _context;
+
+    public DesignationService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApiResponseDto<List<DesignationDto>>> GetDesignationsAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var designations = await _context.Designations
+            .AsNoTracking()
+            .Where(d => d.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        var dtos = designations.Select(d => new DesignationDto
+        {
+            Id = d.Id,
+            OrganizationId = d.OrganizationId,
+            Name = d.Name
+        }).ToList();
+
+        return ApiResponseDto<List<DesignationDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<DesignationDto>> GetDesignationByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var d = await _context.Designations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+
+        if (d == null) return ApiResponseDto<DesignationDto>.Fail("Designation not found.");
+
+        var dto = new DesignationDto
+        {
+            Id = d.Id,
+            OrganizationId = d.OrganizationId,
+            Name = d.Name
+        };
+
+        return ApiResponseDto<DesignationDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<DesignationDto>> CreateDesignationAsync(CreateDesignationDto request, CancellationToken cancellationToken = default)
+    {
+        var designation = new Designation
+        {
+            OrganizationId = request.OrganizationId,
+            Name = request.Name.Trim()
+        };
+
+        await _context.Designations.AddAsync(designation, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await GetDesignationByIdAsync(designation.Id, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateDesignationAsync(int id, UpdateDesignationDto request, CancellationToken cancellationToken = default)
+    {
+        var designation = await _context.Designations.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (designation == null) return ApiResponseDto<bool>.Fail("Designation not found.");
+
+        designation.Name = request.Name.Trim();
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Designation updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteDesignationAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var designation = await _context.Designations.FirstOrDefaultAsync(d => d.Id == id, cancellationToken);
+        if (designation == null) return ApiResponseDto<bool>.Fail("Designation not found.");
+
+        designation.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Designation deleted successfully.");
+    }
+}
+
+public class LocationService : ILocationService
+{
+    private readonly ApplicationDbContext _context;
+
+    public LocationService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApiResponseDto<List<LocationDto>>> GetLocationsAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var locations = await _context.Locations
+            .AsNoTracking()
+            .Where(l => l.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        var dtos = locations.Select(l => new LocationDto
+        {
+            Id = l.Id,
+            OrganizationId = l.OrganizationId,
+            Name = l.Name,
+            Country = l.Country,
+            EmailAlias = l.EmailAlias,
+            Latitude = l.Latitude,
+            Longitude = l.Longitude,
+            Radius = l.Radius,
+            TimeZoneValue = l.TimeZoneValue
+        }).ToList();
+
+        return ApiResponseDto<List<LocationDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<LocationDto>> GetLocationByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var l = await _context.Locations
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+
+        if (l == null) return ApiResponseDto<LocationDto>.Fail("Location not found.");
+
+        var dto = new LocationDto
+        {
+            Id = l.Id,
+            OrganizationId = l.OrganizationId,
+            Name = l.Name,
+            Country = l.Country,
+            EmailAlias = l.EmailAlias,
+            Latitude = l.Latitude,
+            Longitude = l.Longitude,
+            Radius = l.Radius,
+            TimeZoneValue = l.TimeZoneValue
+        };
+
+        return ApiResponseDto<LocationDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<LocationDto>> CreateLocationAsync(CreateLocationDto request, CancellationToken cancellationToken = default)
+    {
+        var location = new Location
+        {
+            OrganizationId = request.OrganizationId,
+            Name = request.Name.Trim(),
+            Country = request.Country?.Trim(),
+            EmailAlias = request.EmailAlias?.Trim(),
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
+            Radius = request.Radius,
+            TimeZoneValue = request.TimeZoneValue?.Trim()
+        };
+
+        await _context.Locations.AddAsync(location, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await GetLocationByIdAsync(location.Id, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateLocationAsync(int id, UpdateLocationDto request, CancellationToken cancellationToken = default)
+    {
+        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+        if (location == null) return ApiResponseDto<bool>.Fail("Location not found.");
+
+        location.Name = request.Name.Trim();
+        location.Country = request.Country?.Trim();
+        location.EmailAlias = request.EmailAlias?.Trim();
+        location.Latitude = request.Latitude;
+        location.Longitude = request.Longitude;
+        location.Radius = request.Radius;
+        location.TimeZoneValue = request.TimeZoneValue?.Trim();
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Location updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteLocationAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == id, cancellationToken);
+        if (location == null) return ApiResponseDto<bool>.Fail("Location not found.");
+
+        location.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Location deleted successfully.");
+    }
+}
+
+public class AcademicYearService : IAcademicYearService
+{
+    private readonly ApplicationDbContext _context;
+
+    public AcademicYearService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApiResponseDto<List<AcademicYearDto>>> GetAcademicYearsAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var years = await _context.AcademicYears
+            .AsNoTracking()
+            .Where(y => y.OrganizationId == organizationId)
+            .OrderByDescending(y => y.StartDate)
+            .ToListAsync(cancellationToken);
+
+        var dtos = years.Select(y => new AcademicYearDto
+        {
+            Id = y.Id,
+            OrganizationId = y.OrganizationId,
+            StartDate = y.StartDate,
+            EndDate = y.EndDate,
+            IsActive = y.IsActive
+        }).ToList();
+
+        return ApiResponseDto<List<AcademicYearDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<AcademicYearDto>> GetAcademicYearByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var y = await _context.AcademicYears
+            .AsNoTracking()
+            .FirstOrDefaultAsync(y => y.Id == id, cancellationToken);
+
+        if (y == null) return ApiResponseDto<AcademicYearDto>.Fail("Academic Year not found.");
+
+        var dto = new AcademicYearDto
+        {
+            Id = y.Id,
+            OrganizationId = y.OrganizationId,
+            StartDate = y.StartDate,
+            EndDate = y.EndDate,
+            IsActive = y.IsActive
+        };
+
+        return ApiResponseDto<AcademicYearDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<AcademicYearDto>> CreateAcademicYearAsync(CreateAcademicYearDto request, CancellationToken cancellationToken = default)
+    {
+        var year = new AcademicYear
+        {
+            OrganizationId = request.OrganizationId,
+            StartDate = request.StartDate,
+            EndDate = request.EndDate,
+            IsActive = request.IsActive
+        };
+
+        await _context.AcademicYears.AddAsync(year, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await GetAcademicYearByIdAsync(year.Id, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateAcademicYearAsync(int id, UpdateAcademicYearDto request, CancellationToken cancellationToken = default)
+    {
+        var year = await _context.AcademicYears.FirstOrDefaultAsync(y => y.Id == id, cancellationToken);
+        if (year == null) return ApiResponseDto<bool>.Fail("Academic Year not found.");
+
+        year.StartDate = request.StartDate;
+        year.EndDate = request.EndDate;
+        year.IsActive = request.IsActive;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Academic Year updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteAcademicYearAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var year = await _context.AcademicYears.FirstOrDefaultAsync(y => y.Id == id, cancellationToken);
+        if (year == null) return ApiResponseDto<bool>.Fail("Academic Year not found.");
+
+        year.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Academic Year deleted successfully.");
+    }
+}
+
+public class OffDayService : IOffDayService
+{
+    private readonly ApplicationDbContext _context;
+
+    public OffDayService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApiResponseDto<List<OffDayDto>>> GetOffDaysAsync(int organizationId, int academicYearId, CancellationToken cancellationToken = default)
+    {
+        var offDays = await _context.OffDays
+            .AsNoTracking()
+            .Include(o => o.Location)
+            .Include(o => o.Role)
+            .Where(o => o.OrganizationId == organizationId && o.AcademicYearId == academicYearId)
+            .ToListAsync(cancellationToken);
+
+        var dtos = offDays.Select(o => new OffDayDto
+        {
+            Id = o.Id,
+            OrganizationId = o.OrganizationId,
+            AcademicYearId = o.AcademicYearId,
+            LocationId = o.LocationId,
+            LocationName = o.Location?.Name,
+            RoleId = o.RoleId,
+            RoleName = o.Role?.Name,
+            OffDayName = o.OffDayName,
+            WorkDayType = o.WorkDayType,
+            Week1 = o.Week1,
+            Week2 = o.Week2,
+            Week3 = o.Week3,
+            Week4 = o.Week4,
+            Week5 = o.Week5,
+            Week6 = o.Week6
+        }).ToList();
+
+        return ApiResponseDto<List<OffDayDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<OffDayDto>> GetOffDayByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var o = await _context.OffDays
+            .AsNoTracking()
+            .Include(o => o.Location)
+            .Include(o => o.Role)
+            .FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+
+        if (o == null) return ApiResponseDto<OffDayDto>.Fail("Off Day not found.");
+
+        var dto = new OffDayDto
+        {
+            Id = o.Id,
+            OrganizationId = o.OrganizationId,
+            AcademicYearId = o.AcademicYearId,
+            LocationId = o.LocationId,
+            LocationName = o.Location?.Name,
+            RoleId = o.RoleId,
+            RoleName = o.Role?.Name,
+            OffDayName = o.OffDayName,
+            WorkDayType = o.WorkDayType,
+            Week1 = o.Week1,
+            Week2 = o.Week2,
+            Week3 = o.Week3,
+            Week4 = o.Week4,
+            Week5 = o.Week5,
+            Week6 = o.Week6
+        };
+
+        return ApiResponseDto<OffDayDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<OffDayDto>> CreateOffDayAsync(CreateOffDayDto request, CancellationToken cancellationToken = default)
+    {
+        var offDay = new OffDay
+        {
+            OrganizationId = request.OrganizationId,
+            AcademicYearId = request.AcademicYearId,
+            LocationId = request.LocationId,
+            RoleId = request.RoleId,
+            OffDayName = request.OffDayName.Trim(),
+            WorkDayType = request.WorkDayType,
+            Week1 = request.Week1,
+            Week2 = request.Week2,
+            Week3 = request.Week3,
+            Week4 = request.Week4,
+            Week5 = request.Week5,
+            Week6 = request.Week6
+        };
+
+        await _context.OffDays.AddAsync(offDay, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await GetOffDayByIdAsync(offDay.Id, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateOffDayAsync(int id, UpdateOffDayDto request, CancellationToken cancellationToken = default)
+    {
+        var offDay = await _context.OffDays.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        if (offDay == null) return ApiResponseDto<bool>.Fail("Off Day not found.");
+
+        offDay.AcademicYearId = request.AcademicYearId;
+        offDay.LocationId = request.LocationId;
+        offDay.RoleId = request.RoleId;
+        offDay.OffDayName = request.OffDayName.Trim();
+        offDay.WorkDayType = request.WorkDayType;
+        offDay.Week1 = request.Week1;
+        offDay.Week2 = request.Week2;
+        offDay.Week3 = request.Week3;
+        offDay.Week4 = request.Week4;
+        offDay.Week5 = request.Week5;
+        offDay.Week6 = request.Week6;
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Off Day updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteOffDayAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var offDay = await _context.OffDays.FirstOrDefaultAsync(o => o.Id == id, cancellationToken);
+        if (offDay == null) return ApiResponseDto<bool>.Fail("Off Day not found.");
+
+        offDay.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Off Day deleted successfully.");
+    }
+}
+
+public class LeaveTypeService : ILeaveTypeService
+{
+    private readonly ApplicationDbContext _context;
+
+    public LeaveTypeService(ApplicationDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<ApiResponseDto<List<LeaveTypeDto>>> GetLeaveTypesAsync(int organizationId, CancellationToken cancellationToken = default)
+    {
+        var leaveTypes = await _context.LeaveTypes
+            .AsNoTracking()
+            .Include(lt => lt.LeaveSetting)
+            .Where(lt => lt.OrganizationId == organizationId)
+            .ToListAsync(cancellationToken);
+
+        var dtos = leaveTypes.Select(lt => new LeaveTypeDto
+        {
+            Id = lt.Id,
+            OrganizationId = lt.OrganizationId,
+            Name = lt.Name,
+            Description = lt.Description,
+            IsActive = lt.IsActive,
+            Setting = lt.LeaveSetting != null ? new LeaveSettingDto
+            {
+                Id = lt.LeaveSetting.Id,
+                IsPaid = lt.LeaveSetting.IsPaid,
+                Leaves = lt.LeaveSetting.Leaves ?? 0,
+                CanTakeHalfDay = lt.LeaveSetting.CanTakeHalfDay,
+                CarryForwardLeaveCount = lt.LeaveSetting.CarryForwardLeaveCount ?? 0
+            } : null
+        }).ToList();
+
+        return ApiResponseDto<List<LeaveTypeDto>>.Ok(dtos);
+    }
+
+    public async Task<ApiResponseDto<LeaveTypeDto>> GetLeaveTypeByIdAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var lt = await _context.LeaveTypes
+            .AsNoTracking()
+            .Include(x => x.LeaveSetting)
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
+        if (lt == null) return ApiResponseDto<LeaveTypeDto>.Fail("Leave Type not found.");
+
+        var dto = new LeaveTypeDto
+        {
+            Id = lt.Id,
+            OrganizationId = lt.OrganizationId,
+            Name = lt.Name,
+            Description = lt.Description,
+            IsActive = lt.IsActive,
+            Setting = lt.LeaveSetting != null ? new LeaveSettingDto
+            {
+                Id = lt.LeaveSetting.Id,
+                IsPaid = lt.LeaveSetting.IsPaid,
+                Leaves = lt.LeaveSetting.Leaves ?? 0,
+                CanTakeHalfDay = lt.LeaveSetting.CanTakeHalfDay,
+                CarryForwardLeaveCount = lt.LeaveSetting.CarryForwardLeaveCount ?? 0
+            } : null
+        };
+
+        return ApiResponseDto<LeaveTypeDto>.Ok(dto);
+    }
+
+    public async Task<ApiResponseDto<LeaveTypeDto>> CreateLeaveTypeAsync(CreateLeaveTypeDto request, CancellationToken cancellationToken = default)
+    {
+        var leaveType = new LeaveType
+        {
+            OrganizationId = request.OrganizationId,
+            Name = request.Name.Trim(),
+            Description = request.Description?.Trim(),
+            IsActive = request.IsActive,
+            LeaveSetting = new LeaveSetting
+            {
+                OrganizationId = request.OrganizationId,
+                IsPaid = request.IsPaid,
+                Leaves = request.Leaves,
+                CanTakeHalfDay = request.CanTakeHalfDay,
+                CarryForwardLeaveCount = request.CarryForwardLeaveCount
+            }
+        };
+
+        await _context.LeaveTypes.AddAsync(leaveType, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await GetLeaveTypeByIdAsync(leaveType.Id, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<bool>> UpdateLeaveTypeAsync(int id, UpdateLeaveTypeDto request, CancellationToken cancellationToken = default)
+    {
+        var leaveType = await _context.LeaveTypes
+            .Include(lt => lt.LeaveSetting)
+            .FirstOrDefaultAsync(lt => lt.Id == id, cancellationToken);
+
+        if (leaveType == null) return ApiResponseDto<bool>.Fail("Leave Type not found.");
+
+        leaveType.Name = request.Name.Trim();
+        leaveType.Description = request.Description?.Trim();
+        leaveType.IsActive = request.IsActive;
+
+        if (leaveType.LeaveSetting != null)
+        {
+            leaveType.LeaveSetting.IsPaid = request.IsPaid;
+            leaveType.LeaveSetting.Leaves = request.Leaves;
+            leaveType.LeaveSetting.CanTakeHalfDay = request.CanTakeHalfDay;
+            leaveType.LeaveSetting.CarryForwardLeaveCount = request.CarryForwardLeaveCount;
+        }
+        else
+        {
+            leaveType.LeaveSetting = new LeaveSetting
+            {
+                OrganizationId = leaveType.OrganizationId,
+                LeaveTypeId = leaveType.Id,
+                IsPaid = request.IsPaid,
+                Leaves = request.Leaves,
+                CanTakeHalfDay = request.CanTakeHalfDay,
+                CarryForwardLeaveCount = request.CarryForwardLeaveCount
+            };
+            await _context.LeaveSettings.AddAsync(leaveType.LeaveSetting, cancellationToken);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Leave Type updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> DeleteLeaveTypeAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var leaveType = await _context.LeaveTypes.FirstOrDefaultAsync(lt => lt.Id == id, cancellationToken);
+        if (leaveType == null) return ApiResponseDto<bool>.Fail("Leave Type not found.");
+
+        leaveType.IsDeleted = true;
+        await _context.SaveChangesAsync(cancellationToken);
+        return ApiResponseDto<bool>.Ok(true, "Leave Type deleted successfully.");
     }
 }
 
@@ -237,93 +1330,5 @@ public class NotificationService : INotificationService
         }
 
         return ApiResponseDto<bool>.Ok(true);
-    }
-}
-
-public class OvertimeService : IOvertimeService
-{
-    private readonly ApplicationDbContext _context;
-
-    public OvertimeService(ApplicationDbContext context)
-    {
-        _context = context;
-    }
-
-    public async Task<ApiResponseDto<List<OTEntryDto>>> GetEntriesAsync(int employeeId, CancellationToken cancellationToken = default)
-    {
-        var entries = await _context.OTEntries
-            .AsNoTracking()
-            .Where(o => o.EmployeeId == employeeId)
-            .Include(o => o.Employee)
-            .OrderByDescending(o => o.OTDate)
-            .ToListAsync(cancellationToken);
-
-        var dtos = entries.Select(o => new OTEntryDto
-        {
-            Id = o.Id,
-            OrganizationId = o.OrganizationId,
-            EmployeeId = o.EmployeeId,
-            EmployeeName = $"{o.Employee.FirstName} {o.Employee.LastName}".Trim(),
-            OTDate = o.OTDate,
-            OTHours = o.OTHours,
-            MultiplierApplied = o.MultiplierApplied,
-            HourlyRate = o.HourlyRate,
-            OTAmount = o.OTAmount
-        }).ToList();
-
-        return ApiResponseDto<List<OTEntryDto>>.Ok(dtos);
-    }
-
-    public async Task<ApiResponseDto<OTEntryDto>> CalculateOvertimeAsync(CalculateOvertimeRequestDto request, CancellationToken cancellationToken = default)
-    {
-        var employee = await _context.Employees.FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
-        if (employee == null) return ApiResponseDto<OTEntryDto>.Fail("Employee not found.");
-
-        var setting = await _context.OTSettings.FirstOrDefaultAsync(s => s.OrganizationId == employee.OrganizationId && s.IsActive, cancellationToken);
-        if (setting == null || !setting.IsOverTimeEnabled)
-        {
-            return ApiResponseDto<OTEntryDto>.Fail("Overtime calculation is not enabled for this organization.");
-        }
-
-        var standardDailyHours = 8.0m;
-        var otHours = Math.Max(0, request.HoursWorked - standardDailyHours);
-        if (setting.MaxOTHoursPerDay.HasValue && otHours > setting.MaxOTHoursPerDay.Value)
-        {
-            otHours = setting.MaxOTHoursPerDay.Value;
-        }
-
-        var hourlyRate = 100.00m; // Default baseline rate
-        var multiplier = setting.Multiplier > 0 ? setting.Multiplier : 1.5m;
-        var totalAmount = otHours * hourlyRate * multiplier;
-
-        var entry = new OTEntry
-        {
-            OrganizationId = employee.OrganizationId,
-            EmployeeId = employee.Id,
-            OTSettingId = setting.Id,
-            OTDate = request.Date,
-            OTHours = otHours,
-            MultiplierApplied = multiplier,
-            HourlyRate = hourlyRate,
-            OTAmount = totalAmount
-        };
-
-        await _context.OTEntries.AddAsync(entry, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
-
-        var dto = new OTEntryDto
-        {
-            Id = entry.Id,
-            OrganizationId = entry.OrganizationId,
-            EmployeeId = entry.EmployeeId,
-            EmployeeName = $"{employee.FirstName} {employee.LastName}".Trim(),
-            OTDate = entry.OTDate,
-            OTHours = entry.OTHours,
-            MultiplierApplied = entry.MultiplierApplied,
-            HourlyRate = entry.HourlyRate,
-            OTAmount = entry.OTAmount
-        };
-
-        return ApiResponseDto<OTEntryDto>.Ok(dto, "Overtime calculated and recorded successfully.");
     }
 }

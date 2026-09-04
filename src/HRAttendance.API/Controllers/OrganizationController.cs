@@ -3,6 +3,9 @@ using Microsoft.AspNetCore.Mvc;
 using HRAttendance.Business.Interfaces;
 using HRAttendance.Data.DTOs.Common;
 using HRAttendance.Data.DTOs.Organization;
+using HRAttendance.Data.DTOs.Department;
+using HRAttendance.Data.DTOs.Designation;
+using HRAttendance.Data.DTOs.Location;
 
 namespace HRAttendance.API.Controllers;
 
@@ -49,6 +52,16 @@ public class OrganizationController : ControllerBase
     public async Task<IActionResult> GetLocations(int id, CancellationToken cancellationToken)
     {
         var result = await _organizationService.GetLocationsAsync(id, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPut("{id:int}")]
+    [ProducesResponseType(typeof(ApiResponseDto<bool>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> Update(int id, [FromBody] UpdateOrganizationDto request, CancellationToken cancellationToken)
+    {
+        var result = await _organizationService.UpdateOrganizationAsync(id, request, cancellationToken);
+        if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
 }

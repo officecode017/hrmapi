@@ -7,6 +7,7 @@ using HRAttendance.Data.DTOs.Attendance;
 using HRAttendance.Data.DTOs.Common;
 using HRAttendance.Data.Interfaces;
 using HRAttendance.Data.Models.Attendance;
+using HRAttendance.Data.Models.Overtime;
 
 namespace HRAttendance.Business.Services;
 
@@ -37,6 +38,7 @@ public class AttendanceService : IAttendanceService
 
         var employee = await _context.Employees
             .Include(e => e.ProfessionalDetails)
+            .Include(e => e.EmployeeRoles)
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
 
         if (employee == null)
@@ -44,6 +46,21 @@ public class AttendanceService : IAttendanceService
             return ApiResponseDto<AttendanceDto>.Fail("Employee not found.");
         }
 
+        var now = DateTimeOffset.UtcNow;
+
+        // 1. BUSINESS RULE: Check if employee is on Approved Leave for today
+        var onApprovedLeave = await _context.LeaveApplications
+            .AnyAsync(l => l.EmployeeId == request.EmployeeId &&
+                           l.Status == LeaveStatus.Approved &&
+                           l.LeaveFrom <= now &&
+                           l.LeaveTo >= now, cancellationToken);
+
+        if (onApprovedLeave)
+        {
+            return ApiResponseDto<AttendanceDto>.Fail("Cannot check in: You have an approved leave scheduled for today.");
+        }
+
+        // 2. Resolve Shift
         var shiftId = employee.ProfessionalDetails?.ShiftId;
         var shift = shiftId.HasValue 
             ? await _context.Shifts.FirstOrDefaultAsync(s => s.Id == shiftId.Value, cancellationToken)
@@ -62,7 +79,54 @@ public class AttendanceService : IAttendanceService
             return ApiResponseDto<AttendanceDto>.Fail("No active academic year configured for organization.");
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var targetLocationId = request.LocationId > 0 ? request.LocationId : (employee.ProfessionalDetails?.LocationId ?? shift.LocationId);
+        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == targetLocationId, cancellationToken);
+
+        // 3. BUSINESS RULE: Geofence Validation
+        if (location != null && location.Latitude.HasValue && location.Longitude.HasValue && location.Radius.HasValue && location.Radius.Value > 0)
+        {
+            if (request.Latitude.HasValue && request.Longitude.HasValue)
+            {
+                var distanceMeters = CalculateDistanceMeters(
+                    (double)location.Latitude.Value, (double)location.Longitude.Value,
+                    (double)request.Latitude.Value, (double)request.Longitude.Value);
+
+                if (distanceMeters > location.Radius.Value)
+                {
+                    return ApiResponseDto<AttendanceDto>.Fail($"Check-in rejected: Location is outside the allowed geofence ({Math.Round(distanceMeters)}m from campus, allowed radius is {location.Radius.Value}m).");
+                }
+            }
+        }
+
+        // 4. BUSINESS RULE: Check if today is an official Holiday
+        string? dynamicRemark = request.Remark;
+        var holiday = await _context.Holidays
+            .FirstOrDefaultAsync(h => h.OrganizationId == employee.OrganizationId &&
+                                      h.Date == today &&
+                                      (h.LocationId == null || h.LocationId == targetLocationId), cancellationToken);
+        if (holiday != null)
+        {
+            dynamicRemark = string.IsNullOrEmpty(dynamicRemark) 
+                ? $"Worked on Holiday: {holiday.Name}" 
+                : $"{dynamicRemark} [Worked on Holiday: {holiday.Name}]";
+        }
+
+        // 5. BUSINESS RULE: Check if today is an assigned Off-Day / Weekend
+        var primaryRoleId = employee.EmployeeRoles.FirstOrDefault()?.RoleId ?? 0;
+        var dayOfWeek = DateTime.UtcNow.DayOfWeek;
+        var offDay = await _context.OffDays
+            .FirstOrDefaultAsync(o => o.OrganizationId == employee.OrganizationId &&
+                                      o.AcademicYearId == academicYear.Id &&
+                                      (o.LocationId == targetLocationId || o.LocationId == 0) &&
+                                      (o.RoleId == primaryRoleId || o.RoleId == 0) &&
+                                      o.OffDayName.ToLower().Contains(dayOfWeek.ToString().ToLower()), cancellationToken);
+        if (offDay != null)
+        {
+            dynamicRemark = string.IsNullOrEmpty(dynamicRemark) 
+                ? "Worked on Off-Day" 
+                : $"{dynamicRemark} [Worked on Off-Day]";
+        }
+
         var currentTime = TimeOnly.FromTimeSpan(now.TimeOfDay);
 
         // Calculate Late arrival
@@ -73,15 +137,17 @@ public class AttendanceService : IAttendanceService
         {
             OrganizationId = employee.OrganizationId,
             EmployeeId = request.EmployeeId,
-            LocationId = request.LocationId > 0 ? request.LocationId : (employee.ProfessionalDetails?.LocationId ?? shift.LocationId),
+            LocationId = targetLocationId,
             ShiftId = shift.Id,
             AcademicYearId = academicYear.Id,
             InTime = now,
             InTimeLatitude = request.Latitude,
             InTimeLongitude = request.Longitude,
             CheckInMacId = request.MacId,
+            InNetworkSource = request.InNetworkSource,
+            InPlatform = request.InPlatform,
             AppVersion = request.AppVersion,
-            Remark = request.Remark,
+            Remark = dynamicRemark,
             Status = status,
             PunchCount = 1
         };
@@ -111,6 +177,9 @@ public class AttendanceService : IAttendanceService
         attendance.OutTimeLatitude = request.Latitude;
         attendance.OutTimeLongitude = request.Longitude;
         attendance.CheckOutMacId = request.MacId;
+        attendance.OutNetworkSource = request.OutNetworkSource;
+        attendance.OutPlatform = request.OutPlatform;
+
         if (!string.IsNullOrEmpty(request.Remark))
         {
             attendance.Remark = string.IsNullOrEmpty(attendance.Remark) ? request.Remark : $"{attendance.Remark} | {request.Remark}";
@@ -125,6 +194,42 @@ public class AttendanceService : IAttendanceService
 
         attendance.PunchCount = (attendance.PunchCount ?? 1) + 1;
 
+        // 6. BUSINESS RULE: Auto-Calculate Overtime on Checkout
+        var shift = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == attendance.ShiftId, cancellationToken);
+        var otSetting = await _context.OTSettings
+            .FirstOrDefaultAsync(o => o.OrganizationId == attendance.OrganizationId && o.IsActive && o.IsOverTimeEnabled, cancellationToken);
+
+        if (shift != null && otSetting != null)
+        {
+            var currentTime = TimeOnly.FromTimeSpan(now.TimeOfDay);
+            var otThresholdTime = shift.OutTime.AddMinutes(otSetting.OTStartAfterMinutes);
+
+            if (currentTime > otThresholdTime)
+            {
+                var otDuration = (currentTime - shift.OutTime).TotalHours;
+                var maxDaily = otSetting.MaxOTHoursPerDay ?? 4.0m;
+                var otHours = Math.Min((decimal)otDuration, maxDaily);
+
+                if (otHours > 0)
+                {
+                    var otEntry = new OTEntry
+                    {
+                        OrganizationId = attendance.OrganizationId,
+                        EmployeeId = attendance.EmployeeId,
+                        OTSettingId = otSetting.Id,
+                        OTDate = today,
+                        ActualOutTime = now,
+                        OTHours = Math.Round(otHours, 2),
+                        MultiplierApplied = otSetting.Multiplier,
+                        HourlyRate = 0,
+                        OTAmount = 0
+                    };
+                    await _context.OTEntries.AddAsync(otEntry, cancellationToken);
+                    attendance.Remark = $"{attendance.Remark} [OT Auto-Logged: {Math.Round(otHours, 2)} hrs]".Trim();
+                }
+            }
+        }
+
         await _attendanceRepository.UpdateAsync(attendance, cancellationToken);
         _logger.LogInformation("Employee {EmployeeId} checked out. Day total: {DayTotal} hours", request.EmployeeId, attendance.DayTotal);
 
@@ -137,12 +242,14 @@ public class AttendanceService : IAttendanceService
 
         var dtos = records.Select(a => new AttendanceHistoryDto
         {
+            Id = a.Id,
             Date = a.InTime.HasValue ? DateOnly.FromDateTime(a.InTime.Value.DateTime) : DateOnly.MinValue,
             InTime = a.InTime,
             OutTime = a.OutTime,
-            TotalHours = a.DayTotal,
+            DayTotal = a.DayTotal,
             Status = ((AttendanceStatus)a.Status).ToString(),
-            ShiftName = a.Shift?.Name,
+            ShiftName = a.Shift?.Name ?? string.Empty,
+            LocationName = a.Location?.Name ?? string.Empty,
             Remark = a.Remark
         }).ToList();
 
@@ -155,42 +262,61 @@ public class AttendanceService : IAttendanceService
         var attendance = await _attendanceRepository.GetTodayAttendanceAsync(employeeId, today, cancellationToken);
         if (attendance == null)
         {
-            return ApiResponseDto<AttendanceDto?>.Ok(null, "No attendance record for today.");
+            return ApiResponseDto<AttendanceDto?>.Ok(new AttendanceDto
+            {
+                EmployeeId = employeeId,
+                Status = AttendanceStatus.Absent.ToString()
+            }, "No check-in recorded for today.");
         }
 
-        var dtoResult = await MapToDtoAsync(attendance.Id, cancellationToken);
-        return ApiResponseDto<AttendanceDto?>.Ok(dtoResult.Data);
+        var result = await MapToDtoAsync(attendance.Id, cancellationToken);
+        if (!result.Success) return ApiResponseDto<AttendanceDto?>.Fail(result.Message ?? "Attendance not found.");
+        return ApiResponseDto<AttendanceDto?>.Ok(result.Data);
     }
 
     private async Task<ApiResponseDto<AttendanceDto>> MapToDtoAsync(int attendanceId, CancellationToken cancellationToken)
     {
-        var attendance = await _context.EmployeeAttendances
-            .Include(a => a.Employee)
-            .Include(a => a.Location)
-            .Include(a => a.Shift)
-            .FirstOrDefaultAsync(a => a.Id == attendanceId, cancellationToken);
+        var a = await _context.EmployeeAttendances
+            .Include(x => x.Employee)
+            .Include(x => x.Location)
+            .Include(x => x.Shift)
+            .FirstOrDefaultAsync(x => x.Id == attendanceId, cancellationToken);
 
-        if (attendance == null)
-        {
-            return ApiResponseDto<AttendanceDto>.Fail("Attendance not found.");
-        }
+        if (a == null) return ApiResponseDto<AttendanceDto>.Fail("Attendance record not found.");
 
         var dto = new AttendanceDto
         {
-            Id = attendance.Id,
-            EmployeeId = attendance.EmployeeId,
-            EmployeeName = $"{attendance.Employee.FirstName} {attendance.Employee.LastName}".Trim(),
-            LocationId = attendance.LocationId,
-            LocationName = attendance.Location.Name,
-            ShiftId = attendance.ShiftId,
-            ShiftName = attendance.Shift.Name,
-            InTime = attendance.InTime,
-            OutTime = attendance.OutTime,
-            DayTotal = attendance.DayTotal,
-            Status = ((AttendanceStatus)attendance.Status).ToString(),
-            Remark = attendance.Remark
+            Id = a.Id,
+            EmployeeId = a.EmployeeId,
+            EmployeeName = a.Employee != null ? $"{a.Employee.FirstName} {a.Employee.LastName}".Trim() : string.Empty,
+            LocationId = a.LocationId,
+            LocationName = a.Location?.Name ?? string.Empty,
+            ShiftId = a.ShiftId,
+            ShiftName = a.Shift?.Name ?? string.Empty,
+            InTime = a.InTime,
+            OutTime = a.OutTime,
+            DayTotal = a.DayTotal,
+            Status = ((AttendanceStatus)a.Status).ToString(),
+            Remark = a.Remark
         };
 
         return ApiResponseDto<AttendanceDto>.Ok(dto);
+    }
+
+    // Haversine formula to calculate distance between two GPS coordinates in meters
+    private static double CalculateDistanceMeters(double lat1, double lon1, double lat2, double lon2)
+    {
+        const double R = 6371e3; // Earth radius in meters
+        var phi1 = lat1 * Math.PI / 180.0;
+        var phi2 = lat2 * Math.PI / 180.0;
+        var deltaPhi = (lat2 - lat1) * Math.PI / 180.0;
+        var deltaLambda = (lon2 - lon1) * Math.PI / 180.0;
+
+        var a = Math.Sin(deltaPhi / 2.0) * Math.Sin(deltaPhi / 2.0) +
+                Math.Cos(phi1) * Math.Cos(phi2) *
+                Math.Sin(deltaLambda / 2.0) * Math.Sin(deltaLambda / 2.0);
+
+        var c = 2.0 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1.0 - a));
+        return R * c;
     }
 }

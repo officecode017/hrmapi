@@ -74,11 +74,38 @@ public class EmployeeService : IEmployeeService
             Gender = employee.Gender,
             BloodGroup = employee.BloodGroup,
             MaritalStatus = employee.MaritalStatus,
+            FatherName = employee.FatherName,
+            MotherName = employee.MotherName,
+            Nationality = employee.Nationality,
+            Religion = employee.Religion,
+            BirthPlace = employee.BirthPlace,
+            IdentificationMark = employee.IdentificationMark,
+            EmployeeType = employee.EmployeeType,
+            Qualification = employee.Qualification,
+            SkillSet = employee.SkillSet,
+            PhotoPath = employee.PhotoPath,
             IsActive = employee.IsActive,
-            WorkEmail = employee.ContactDetails?.WorkEmail,
-            Mobile = employee.ContactDetails?.Mobile,
+            ResignationDate = employee.ResignationDate,
+            LastWorkingDay = employee.LastWorkingDay,
+            ReasonForLeaving = employee.ReasonForLeaving,
+
+            // Contact
+            Address = employee.ContactDetails?.Address,
+            PermanentAddress = employee.ContactDetails?.PermanentAddress,
             City = employee.ContactDetails?.City,
+            State = employee.ContactDetails?.State,
             Country = employee.ContactDetails?.Country,
+            PostalCode = employee.ContactDetails?.PostalCode,
+            WorkEmail = employee.ContactDetails?.WorkEmail,
+            OtherEmail = employee.ContactDetails?.OtherEmail,
+            Mobile = employee.ContactDetails?.Mobile,
+            WorkTelephone = employee.ContactDetails?.WorkTelephone,
+            HomeTelephone = employee.ContactDetails?.HomeTelephone,
+            Extension = employee.ContactDetails?.Extension,
+            EmergencyPerson = employee.ContactDetails?.EmergencyPerson,
+            EmergencyContact = employee.ContactDetails?.EmergencyContact,
+
+            // Professional
             DepartmentId = employee.ProfessionalDetails?.DepartmentId,
             DepartmentName = employee.ProfessionalDetails?.Department?.Name,
             DesignationId = employee.ProfessionalDetails?.DesignationId,
@@ -90,6 +117,7 @@ public class EmployeeService : IEmployeeService
             ReportingTo = employee.ProfessionalDetails?.ReportingTo,
             ReportingToName = employee.ProfessionalDetails?.Manager != null ? $"{employee.ProfessionalDetails.Manager.FirstName} {employee.ProfessionalDetails.Manager.LastName}".Trim() : null,
             DateOfJoining = employee.ProfessionalDetails?.DateOfJoining,
+            ProbationPeriodMonths = employee.ProfessionalDetails?.ProbationPeriod,
             Roles = employee.EmployeeRoles.Select(r => r.Role?.Name ?? string.Empty).Where(r => !string.IsNullOrEmpty(r)).ToList()
         };
 
@@ -113,15 +141,36 @@ public class EmployeeService : IEmployeeService
             LastName = request.LastName.Trim(),
             DOB = request.DOB,
             Gender = request.Gender,
+            BloodGroup = request.BloodGroup,
+            MaritalStatus = request.MaritalStatus,
+            FatherName = request.FatherName?.Trim(),
+            MotherName = request.MotherName?.Trim(),
+            Nationality = request.Nationality?.Trim(),
+            Religion = request.Religion?.Trim(),
+            BirthPlace = request.BirthPlace?.Trim(),
+            IdentificationMark = request.IdentificationMark?.Trim(),
+            EmployeeType = request.EmployeeType?.Trim() ?? "Full-Time",
+            Qualification = request.Qualification?.Trim(),
+            SkillSet = request.SkillSet?.Trim(),
             IsActive = true,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             ContactDetails = new EmployeeContactDetails
             {
                 OrganizationId = request.OrganizationId,
-                WorkEmail = request.WorkEmail.Trim(),
-                Mobile = request.Mobile?.Trim(),
+                Address = request.Address?.Trim(),
+                PermanentAddress = request.PermanentAddress?.Trim(),
                 City = request.City?.Trim(),
-                Country = request.Country?.Trim()
+                State = request.State?.Trim(),
+                Country = request.Country?.Trim(),
+                PostalCode = request.PostalCode?.Trim(),
+                WorkEmail = request.WorkEmail.Trim(),
+                OtherEmail = request.OtherEmail?.Trim(),
+                Mobile = request.Mobile?.Trim(),
+                WorkTelephone = request.WorkTelephone?.Trim(),
+                HomeTelephone = request.HomeTelephone?.Trim(),
+                Extension = request.Extension?.Trim(),
+                EmergencyPerson = request.EmergencyPerson?.Trim(),
+                EmergencyContact = request.EmergencyContact?.Trim()
             },
             ProfessionalDetails = new EmployeeProfessionalDetails
             {
@@ -131,7 +180,8 @@ public class EmployeeService : IEmployeeService
                 LocationId = request.LocationId,
                 ShiftId = request.ShiftId,
                 ReportingTo = request.ReportingTo,
-                DateOfJoining = request.DateOfJoining ?? DateOnly.FromDateTime(DateTime.UtcNow)
+                DateOfJoining = request.DateOfJoining ?? DateOnly.FromDateTime(DateTime.UtcNow),
+                ProbationPeriod = request.ProbationPeriodMonths
             }
         };
 
@@ -168,14 +218,36 @@ public class EmployeeService : IEmployeeService
         employee.Gender = request.Gender;
         employee.BloodGroup = request.BloodGroup;
         employee.MaritalStatus = request.MaritalStatus;
+        employee.FatherName = request.FatherName?.Trim();
+        employee.MotherName = request.MotherName?.Trim();
+        employee.Nationality = request.Nationality?.Trim();
+        employee.Religion = request.Religion?.Trim();
+        employee.BirthPlace = request.BirthPlace?.Trim();
+        employee.IdentificationMark = request.IdentificationMark?.Trim();
+        employee.EmployeeType = request.EmployeeType?.Trim();
+        employee.Qualification = request.Qualification?.Trim();
+        employee.SkillSet = request.SkillSet?.Trim();
         employee.IsActive = request.IsActive;
+        employee.ResignationDate = request.ResignationDate;
+        employee.LastWorkingDay = request.LastWorkingDay;
+        employee.ReasonForLeaving = request.ReasonForLeaving?.Trim();
 
         if (employee.ContactDetails != null)
         {
-            employee.ContactDetails.WorkEmail = request.WorkEmail?.Trim();
-            employee.ContactDetails.Mobile = request.Mobile?.Trim();
+            employee.ContactDetails.Address = request.Address?.Trim();
+            employee.ContactDetails.PermanentAddress = request.PermanentAddress?.Trim();
             employee.ContactDetails.City = request.City?.Trim();
+            employee.ContactDetails.State = request.State?.Trim();
             employee.ContactDetails.Country = request.Country?.Trim();
+            employee.ContactDetails.PostalCode = request.PostalCode?.Trim();
+            employee.ContactDetails.WorkEmail = request.WorkEmail?.Trim();
+            employee.ContactDetails.OtherEmail = request.OtherEmail?.Trim();
+            employee.ContactDetails.Mobile = request.Mobile?.Trim();
+            employee.ContactDetails.WorkTelephone = request.WorkTelephone?.Trim();
+            employee.ContactDetails.HomeTelephone = request.HomeTelephone?.Trim();
+            employee.ContactDetails.Extension = request.Extension?.Trim();
+            employee.ContactDetails.EmergencyPerson = request.EmergencyPerson?.Trim();
+            employee.ContactDetails.EmergencyContact = request.EmergencyContact?.Trim();
         }
 
         if (employee.ProfessionalDetails != null)
@@ -185,6 +257,8 @@ public class EmployeeService : IEmployeeService
             employee.ProfessionalDetails.LocationId = request.LocationId;
             employee.ProfessionalDetails.ShiftId = request.ShiftId;
             employee.ProfessionalDetails.ReportingTo = request.ReportingTo;
+            employee.ProfessionalDetails.DateOfJoining = request.DateOfJoining;
+            employee.ProfessionalDetails.ProbationPeriod = request.ProbationPeriodMonths;
         }
 
         await _employeeRepository.UpdateAsync(employee, cancellationToken);
