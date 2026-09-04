@@ -35,16 +35,13 @@ var app = builder.Build();
 // 4. Global Exception Middleware (ProblemDetails)
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-// 5. OpenAPI / Swagger Documentation
-if (app.Environment.IsDevelopment())
+// 5. OpenAPI / Swagger Documentation (Available in Development & Production)
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "HRAttendance API v1");
-        c.RoutePrefix = string.Empty; // Serve Swagger UI at root "/"
-    });
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "HRAttendance API v1");
+    c.RoutePrefix = string.Empty; // Serve Swagger UI at root "/"
+});
 
 app.UseCors("AllowFrontend");
 
