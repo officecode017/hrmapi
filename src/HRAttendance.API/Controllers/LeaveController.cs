@@ -88,7 +88,8 @@ public class LeaveController : ControllerBase
     public async Task<IActionResult> CancelLeave(int id, CancellationToken cancellationToken)
     {
         var employeeId = User.TryGetEmployeeId() ?? 1;
-        var result = await _leaveService.CancelLeaveAsync(id, employeeId, cancellationToken);
+        var isAdmin = User.IsInRole(ApplicationRoles.SuperAdmin) || User.IsInRole(ApplicationRoles.Admin);
+        var result = await _leaveService.CancelLeaveAsync(id, employeeId, isAdmin, cancellationToken);
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }

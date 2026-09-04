@@ -982,6 +982,14 @@ public class AcademicYearService : IAcademicYearService
 
     public async Task<ApiResponseDto<AcademicYearDto>> CreateAcademicYearAsync(CreateAcademicYearDto request, CancellationToken cancellationToken = default)
     {
+        if (request.IsActive)
+        {
+            var existingActives = await _context.AcademicYears
+                .Where(y => y.OrganizationId == request.OrganizationId && y.IsActive)
+                .ToListAsync(cancellationToken);
+            foreach (var ea in existingActives) ea.IsActive = false;
+        }
+
         var year = new AcademicYear
         {
             OrganizationId = request.OrganizationId,
@@ -1000,6 +1008,14 @@ public class AcademicYearService : IAcademicYearService
     {
         var year = await _context.AcademicYears.FirstOrDefaultAsync(y => y.Id == id, cancellationToken);
         if (year == null) return ApiResponseDto<bool>.Fail("Academic Year not found.");
+
+        if (request.IsActive && !year.IsActive)
+        {
+            var existingActives = await _context.AcademicYears
+                .Where(y => y.OrganizationId == year.OrganizationId && y.IsActive)
+                .ToListAsync(cancellationToken);
+            foreach (var ea in existingActives) ea.IsActive = false;
+        }
 
         year.StartDate = request.StartDate;
         year.EndDate = request.EndDate;

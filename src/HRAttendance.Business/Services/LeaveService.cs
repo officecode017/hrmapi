@@ -45,8 +45,15 @@ public class LeaveService : ILeaveService
             return ApiResponseDto<LeaveApplicationDto>.Fail("Invalid or inactive leave type.");
         }
 
+        var leaveDate = DateOnly.FromDateTime(request.LeaveFrom.DateTime);
         var academicYear = await _context.AcademicYears
-            .FirstOrDefaultAsync(a => a.OrganizationId == employee.OrganizationId && a.IsActive, cancellationToken);
+            .Where(a => a.OrganizationId == employee.OrganizationId && a.StartDate <= leaveDate && a.EndDate >= leaveDate)
+            .OrderByDescending(a => a.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? await _context.AcademicYears
+                .Where(a => a.OrganizationId == employee.OrganizationId && a.IsActive)
+                .OrderByDescending(a => a.Id)
+                .FirstOrDefaultAsync(cancellationToken);
 
         if (academicYear == null)
         {
@@ -210,8 +217,15 @@ public class LeaveService : ILeaveService
         // If approved, deduct from EmployeeLeaves balance
         if (request.IsApproved)
         {
+            var leaveDate = DateOnly.FromDateTime(application.LeaveFrom.DateTime);
             var academicYear = await _context.AcademicYears
-                .FirstOrDefaultAsync(a => a.OrganizationId == application.OrganizationId && a.IsActive, cancellationToken);
+                .Where(a => a.OrganizationId == application.OrganizationId && a.StartDate <= leaveDate && a.EndDate >= leaveDate)
+                .OrderByDescending(a => a.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? await _context.AcademicYears
+                    .Where(a => a.OrganizationId == application.OrganizationId && a.IsActive)
+                    .OrderByDescending(a => a.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
 
             if (academicYear != null)
             {
@@ -230,7 +244,7 @@ public class LeaveService : ILeaveService
         return ApiResponseDto<bool>.Ok(true, $"Leave application {newStatus.ToLower()} successfully.");
     }
 
-    public async Task<ApiResponseDto<bool>> CancelLeaveAsync(int leaveApplicationId, int employeeId, CancellationToken cancellationToken = default)
+    public async Task<ApiResponseDto<bool>> CancelLeaveAsync(int leaveApplicationId, int employeeId, bool isAdmin = false, CancellationToken cancellationToken = default)
     {
         var application = await _leaveRepository.GetByIdAsync(leaveApplicationId, cancellationToken);
         if (application == null)
@@ -238,7 +252,7 @@ public class LeaveService : ILeaveService
             return ApiResponseDto<bool>.Fail("Leave application not found.");
         }
 
-        if (application.EmployeeId != employeeId)
+        if (!isAdmin && application.EmployeeId != employeeId)
         {
             return ApiResponseDto<bool>.Fail("Unauthorized: You can only cancel your own leave applications.");
         }
@@ -251,8 +265,15 @@ public class LeaveService : ILeaveService
         // If previously approved, refund deducted balance
         if (application.Status == LeaveStatus.Approved)
         {
+            var leaveDate = DateOnly.FromDateTime(application.LeaveFrom.DateTime);
             var academicYear = await _context.AcademicYears
-                .FirstOrDefaultAsync(a => a.OrganizationId == application.OrganizationId && a.IsActive, cancellationToken);
+                .Where(a => a.OrganizationId == application.OrganizationId && a.StartDate <= leaveDate && a.EndDate >= leaveDate)
+                .OrderByDescending(a => a.Id)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? await _context.AcademicYears
+                    .Where(a => a.OrganizationId == application.OrganizationId && a.IsActive)
+                    .OrderByDescending(a => a.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
 
             if (academicYear != null)
             {
