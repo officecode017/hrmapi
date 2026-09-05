@@ -26,6 +26,7 @@ public class Employee : AuditableEntity
     public string? BirthPlace { get; set; }
     public string? IdentificationMark { get; set; }
     public string? PhotoPath { get; set; }
+    public string? BackgroundImagePath { get; set; }
     public string? EmployeeType { get; set; }
     public string? Qualification { get; set; }
     public string? SkillSet { get; set; }

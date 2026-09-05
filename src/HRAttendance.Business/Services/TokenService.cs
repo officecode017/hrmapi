@@ -17,7 +17,7 @@ public class TokenService : ITokenService
         _configuration = configuration;
     }
 
-    public string GenerateToken(Employee employee, List<string> roles, out DateTime expiration)
+    public string GenerateToken(Employee employee, List<string> roles, out DateTime expiration, List<string>? permissions = null)
     {
         var jwtKey = _configuration["Jwt:Key"] ?? "DefaultFallbackSecretKeyForDevelopmentAndTestingPurposeOnly12345!";
         var issuer = _configuration["Jwt:Issuer"] ?? "HRAttendance";
@@ -41,6 +41,14 @@ public class TokenService : ITokenService
         foreach (var role in roles)
         {
             claims.Add(new Claim(ClaimTypes.Role, role));
+        }
+
+        if (permissions != null)
+        {
+            foreach (var perm in permissions)
+            {
+                claims.Add(new Claim("Permission", perm));
+            }
         }
 
         var tokenDescriptor = new SecurityTokenDescriptor

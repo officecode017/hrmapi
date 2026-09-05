@@ -34,6 +34,8 @@ public class AuthService : IAuthService
             .Include(e => e.ContactDetails)
             .Include(e => e.EmployeeRoles)
                 .ThenInclude(er => er.Role)
+                    .ThenInclude(r => r.RolePermissions)
+                        .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(e => e.OrganizationId == request.OrganizationId 
                                    && (e.EmployeeCode == identifier || (e.ContactDetails != null && e.ContactDetails.WorkEmail == identifier)), 
                                  cancellationToken);
@@ -67,7 +69,23 @@ public class AuthService : IAuthService
             roles.Add("Employee");
         }
 
-        var token = _tokenService.GenerateToken(employee, roles, out var expiration);
+        var permissions = employee.EmployeeRoles
+            .Where(r => r.Role != null && r.Role.IsActive)
+            .SelectMany(r => r.Role.RolePermissions)
+            .Where(rp => rp.Permission != null && !rp.Permission.IsDeleted)
+            .Select(rp => rp.Permission.Name)
+            .Distinct()
+            .ToList();
+
+        if (roles.Contains("Super Admin") || roles.Contains("HR/Admin"))
+        {
+            if (!permissions.Contains("*"))
+            {
+                permissions.Insert(0, "*");
+            }
+        }
+
+        var token = _tokenService.GenerateToken(employee, roles, out var expiration, permissions);
 
         _logger.LogInformation("Authentication successful for employee {EmployeeId} ({Code})", employee.Id, employee.EmployeeCode);
 
@@ -82,7 +100,9 @@ public class AuthService : IAuthService
                 EmployeeCode = employee.EmployeeCode,
                 FullName = $"{employee.FirstName} {employee.LastName}".Trim(),
                 Email = employee.ContactDetails?.WorkEmail ?? $"{employee.EmployeeCode}@hrm.local",
-                Roles = roles
+                PhotoPath = employee.PhotoPath,
+                Roles = roles,
+                Permissions = permissions
             }
         };
 
@@ -95,6 +115,8 @@ public class AuthService : IAuthService
             .Include(e => e.ContactDetails)
             .Include(e => e.EmployeeRoles)
                 .ThenInclude(er => er.Role)
+                    .ThenInclude(r => r.RolePermissions)
+                        .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken);
 
         if (employee == null)
@@ -107,6 +129,22 @@ public class AuthService : IAuthService
             .Select(r => r.Role.Name)
             .ToList();
 
+        var permissions = employee.EmployeeRoles
+            .Where(r => r.Role != null && r.Role.IsActive)
+            .SelectMany(r => r.Role.RolePermissions)
+            .Where(rp => rp.Permission != null && !rp.Permission.IsDeleted)
+            .Select(rp => rp.Permission.Name)
+            .Distinct()
+            .ToList();
+
+        if (roles.Contains("Super Admin") || roles.Contains("HR/Admin"))
+        {
+            if (!permissions.Contains("*"))
+            {
+                permissions.Insert(0, "*");
+            }
+        }
+
         var session = new UserSessionDto
         {
             EmployeeId = employee.Id,
@@ -114,7 +152,8 @@ public class AuthService : IAuthService
             EmployeeCode = employee.EmployeeCode,
             FullName = $"{employee.FirstName} {employee.LastName}".Trim(),
             Email = employee.ContactDetails?.WorkEmail ?? $"{employee.EmployeeCode}@hrm.local",
-            Roles = roles
+            Roles = roles,
+            Permissions = permissions
         };
 
         return ApiResponseDto<UserSessionDto>.Ok(session);

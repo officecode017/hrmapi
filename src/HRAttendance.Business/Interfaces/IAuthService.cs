@@ -12,7 +12,7 @@ public interface IPasswordHasher
 
 public interface ITokenService
 {
-    string GenerateToken(Employee employee, List<string> roles, out DateTime expiration);
+    string GenerateToken(Employee employee, List<string> roles, out DateTime expiration, List<string>? permissions = null);
 }
 
 public interface IAuthService

@@ -49,6 +49,7 @@ public static class DependencyInjectionExtensions
         services.AddScoped<IOffDayService, OffDayService>();
         services.AddScoped<ILeaveTypeService, LeaveTypeService>();
         services.AddScoped<IDashboardService, DashboardService>();
+        services.AddScoped<IFileStorageService, LocalFileStorageService>();
 
         return services;
     }

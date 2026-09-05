@@ -13,8 +13,10 @@ public class Location : AuditableEntity
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public int? Radius { get; set; }
+    public bool EnforceGeofence { get; set; } = false;
     public int? TimeZone { get; set; }
     public string? TimeZoneValue { get; set; }
+
 
     public virtual Organization Organization { get; set; } = null!;
     public virtual ICollection<Holiday> Holidays { get; set; } = new List<Holiday>();

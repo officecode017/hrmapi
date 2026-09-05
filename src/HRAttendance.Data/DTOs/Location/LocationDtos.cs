@@ -15,6 +15,7 @@ public class LocationDto
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public int? Radius { get; set; }
+    public bool EnforceGeofence { get; set; } = false;
     public string? TimeZone { get; set; }
     public string? TimeZoneValue { get; set; }
 }
@@ -33,6 +34,7 @@ public class CreateLocationDto
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public int? Radius { get; set; } = 500;
+    public bool EnforceGeofence { get; set; } = false;
     public string? TimeZone { get; set; }
     public string? TimeZoneValue { get; set; }
 }
@@ -50,6 +52,8 @@ public class UpdateLocationDto
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public int? Radius { get; set; }
+    public bool? EnforceGeofence { get; set; }
     public string? TimeZone { get; set; }
     public string? TimeZoneValue { get; set; }
 }
+

@@ -15,6 +15,7 @@ public class EmployeeServiceTests
 {
     private readonly Mock<IEmployeeRepository> _mockRepo;
     private readonly Mock<IPasswordHasher> _mockHasher;
+    private readonly Mock<IFileStorageService> _mockFileStorage;
     private readonly Mock<ILogger<EmployeeService>> _mockLogger;
     private readonly EmployeeService _service;
 
@@ -22,9 +23,10 @@ public class EmployeeServiceTests
     {
         _mockRepo = new Mock<IEmployeeRepository>();
         _mockHasher = new Mock<IPasswordHasher>();
+        _mockFileStorage = new Mock<IFileStorageService>();
         _mockLogger = new Mock<ILogger<EmployeeService>>();
 
-        _service = new EmployeeService(_mockRepo.Object, _mockHasher.Object, _mockLogger.Object);
+        _service = new EmployeeService(_mockRepo.Object, _mockHasher.Object, _mockFileStorage.Object, _mockLogger.Object);
     }
 
     [Fact]

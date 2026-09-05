@@ -125,6 +125,18 @@ public class CreateOffDayDtoValidator : AbstractValidator<CreateOffDayDto>
     }
 }
 
+public class SaveOffDayMatrixDtoValidator : AbstractValidator<SaveOffDayMatrixDto>
+{
+    public SaveOffDayMatrixDtoValidator()
+    {
+        RuleFor(x => x.OrganizationId).GreaterThan(0);
+        RuleFor(x => x.AcademicYearId).GreaterThan(0);
+        RuleFor(x => x.LocationId).GreaterThan(0);
+        RuleFor(x => x.RoleId).GreaterThan(0);
+        RuleFor(x => x.Days).NotNull();
+    }
+}
+
 public class CreateLeaveTypeDtoValidator : AbstractValidator<CreateLeaveTypeDto>
 {
     public CreateLeaveTypeDtoValidator()

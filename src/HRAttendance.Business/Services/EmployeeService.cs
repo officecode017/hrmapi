@@ -12,15 +12,18 @@ public class EmployeeService : IEmployeeService
 {
     private readonly IEmployeeRepository _employeeRepository;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IFileStorageService _fileStorageService;
     private readonly ILogger<EmployeeService> _logger;
 
     public EmployeeService(
         IEmployeeRepository employeeRepository,
         IPasswordHasher passwordHasher,
+        IFileStorageService fileStorageService,
         ILogger<EmployeeService> logger)
     {
         _employeeRepository = employeeRepository;
         _passwordHasher = passwordHasher;
+        _fileStorageService = fileStorageService;
         _logger = logger;
     }
 
@@ -40,6 +43,7 @@ public class EmployeeService : IEmployeeService
             Mobile = e.ContactDetails?.Mobile,
             DepartmentName = e.ProfessionalDetails?.Department?.Name,
             DesignationName = e.ProfessionalDetails?.Designation?.Name,
+            PhotoPath = e.PhotoPath,
             IsActive = e.IsActive
         }).ToList();
 
@@ -84,6 +88,7 @@ public class EmployeeService : IEmployeeService
             Qualification = employee.Qualification,
             SkillSet = employee.SkillSet,
             PhotoPath = employee.PhotoPath,
+            BackgroundImagePath = employee.BackgroundImagePath,
             IsActive = employee.IsActive,
             ResignationDate = employee.ResignationDate,
             LastWorkingDay = employee.LastWorkingDay,
@@ -118,7 +123,8 @@ public class EmployeeService : IEmployeeService
             ReportingToName = employee.ProfessionalDetails?.Manager != null ? $"{employee.ProfessionalDetails.Manager.FirstName} {employee.ProfessionalDetails.Manager.LastName}".Trim() : null,
             DateOfJoining = employee.ProfessionalDetails?.DateOfJoining,
             ProbationPeriodMonths = employee.ProfessionalDetails?.ProbationPeriod,
-            Roles = employee.EmployeeRoles.Select(r => r.Role?.Name ?? string.Empty).Where(r => !string.IsNullOrEmpty(r)).ToList()
+            Roles = employee.EmployeeRoles.Select(r => r.Role?.Name ?? string.Empty).Where(r => !string.IsNullOrEmpty(r)).ToList(),
+            RoleIds = employee.EmployeeRoles.Select(r => r.RoleId).ToList()
         };
 
         return ApiResponseDto<EmployeeDto>.Ok(dto);
@@ -152,6 +158,8 @@ public class EmployeeService : IEmployeeService
             EmployeeType = request.EmployeeType?.Trim() ?? "Full-Time",
             Qualification = request.Qualification?.Trim(),
             SkillSet = request.SkillSet?.Trim(),
+            PhotoPath = request.PhotoPath,
+            BackgroundImagePath = request.BackgroundImagePath,
             IsActive = true,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             ContactDetails = new EmployeeContactDetails
@@ -232,33 +240,81 @@ public class EmployeeService : IEmployeeService
         employee.LastWorkingDay = request.LastWorkingDay;
         employee.ReasonForLeaving = request.ReasonForLeaving?.Trim();
 
-        if (employee.ContactDetails != null)
+        if (employee.ContactDetails == null)
         {
-            employee.ContactDetails.Address = request.Address?.Trim();
-            employee.ContactDetails.PermanentAddress = request.PermanentAddress?.Trim();
-            employee.ContactDetails.City = request.City?.Trim();
-            employee.ContactDetails.State = request.State?.Trim();
-            employee.ContactDetails.Country = request.Country?.Trim();
-            employee.ContactDetails.PostalCode = request.PostalCode?.Trim();
-            employee.ContactDetails.WorkEmail = request.WorkEmail?.Trim();
-            employee.ContactDetails.OtherEmail = request.OtherEmail?.Trim();
-            employee.ContactDetails.Mobile = request.Mobile?.Trim();
-            employee.ContactDetails.WorkTelephone = request.WorkTelephone?.Trim();
-            employee.ContactDetails.HomeTelephone = request.HomeTelephone?.Trim();
-            employee.ContactDetails.Extension = request.Extension?.Trim();
-            employee.ContactDetails.EmergencyPerson = request.EmergencyPerson?.Trim();
-            employee.ContactDetails.EmergencyContact = request.EmergencyContact?.Trim();
+            employee.ContactDetails = new EmployeeContactDetails
+            {
+                OrganizationId = employee.OrganizationId,
+                EmployeeId = employee.Id
+            };
+        }
+        employee.ContactDetails.Address = request.Address?.Trim();
+        employee.ContactDetails.PermanentAddress = request.PermanentAddress?.Trim();
+        employee.ContactDetails.City = request.City?.Trim();
+        employee.ContactDetails.State = request.State?.Trim();
+        employee.ContactDetails.Country = request.Country?.Trim();
+        employee.ContactDetails.PostalCode = request.PostalCode?.Trim();
+        employee.ContactDetails.WorkEmail = request.WorkEmail?.Trim();
+        employee.ContactDetails.OtherEmail = request.OtherEmail?.Trim();
+        employee.ContactDetails.Mobile = request.Mobile?.Trim();
+        employee.ContactDetails.WorkTelephone = request.WorkTelephone?.Trim();
+        employee.ContactDetails.HomeTelephone = request.HomeTelephone?.Trim();
+        employee.ContactDetails.Extension = request.Extension?.Trim();
+        employee.ContactDetails.EmergencyPerson = request.EmergencyPerson?.Trim();
+        employee.ContactDetails.EmergencyContact = request.EmergencyContact?.Trim();
+
+        if (employee.ProfessionalDetails == null)
+        {
+            employee.ProfessionalDetails = new EmployeeProfessionalDetails
+            {
+                OrganizationId = employee.OrganizationId,
+                EmployeeId = employee.Id
+            };
+        }
+        employee.ProfessionalDetails.DepartmentId = request.DepartmentId;
+        employee.ProfessionalDetails.DesignationId = request.DesignationId;
+        employee.ProfessionalDetails.LocationId = request.LocationId;
+        employee.ProfessionalDetails.ShiftId = request.ShiftId;
+        employee.ProfessionalDetails.ReportingTo = request.ReportingTo;
+        employee.ProfessionalDetails.DateOfJoining = request.DateOfJoining;
+        employee.ProfessionalDetails.ProbationPeriod = request.ProbationPeriodMonths;
+
+        // Reconcile roles if provided
+        if (request.RoleIds != null && request.RoleIds.Any())
+        {
+            var currentRoleIds = employee.EmployeeRoles.Select(er => er.RoleId).ToList();
+            var rolesToRemove = employee.EmployeeRoles.Where(er => !request.RoleIds.Contains(er.RoleId)).ToList();
+            foreach (var r in rolesToRemove)
+            {
+                employee.EmployeeRoles.Remove(r);
+            }
+
+            var rolesToAdd = request.RoleIds.Where(rid => !currentRoleIds.Contains(rid)).ToList();
+            foreach (var rid in rolesToAdd)
+            {
+                employee.EmployeeRoles.Add(new EmployeeRole
+                {
+                    OrganizationId = employee.OrganizationId,
+                    EmployeeId = employee.Id,
+                    RoleId = rid
+                });
+            }
         }
 
-        if (employee.ProfessionalDetails != null)
+        // Reset password if provided
+        if (!string.IsNullOrWhiteSpace(request.Password))
         {
-            employee.ProfessionalDetails.DepartmentId = request.DepartmentId;
-            employee.ProfessionalDetails.DesignationId = request.DesignationId;
-            employee.ProfessionalDetails.LocationId = request.LocationId;
-            employee.ProfessionalDetails.ShiftId = request.ShiftId;
-            employee.ProfessionalDetails.ReportingTo = request.ReportingTo;
-            employee.ProfessionalDetails.DateOfJoining = request.DateOfJoining;
-            employee.ProfessionalDetails.ProbationPeriod = request.ProbationPeriodMonths;
+            employee.PasswordHash = _passwordHasher.HashPassword(request.Password);
+        }
+
+        if (request.PhotoPath != null)
+        {
+            employee.PhotoPath = request.PhotoPath;
+        }
+
+        if (request.BackgroundImagePath != null)
+        {
+            employee.BackgroundImagePath = request.BackgroundImagePath;
         }
 
         await _employeeRepository.UpdateAsync(employee, cancellationToken);
@@ -279,5 +335,95 @@ public class EmployeeService : IEmployeeService
         _logger.LogInformation("Soft-deleted employee {EmployeeId}", id);
 
         return ApiResponseDto<bool>.Ok(true, "Employee deleted successfully.");
+    }
+
+    public async Task<ApiResponseDto<EmployeePhotoResponseDto>> UpdatePhotoAsync(int id, Microsoft.AspNetCore.Http.IFormFile file, CancellationToken cancellationToken = default)
+    {
+        var employee = await _employeeRepository.GetByIdAsync(id, cancellationToken);
+        if (employee == null)
+        {
+            return ApiResponseDto<EmployeePhotoResponseDto>.Fail($"Employee with ID {id} was not found.");
+        }
+
+        var savedPath = await _fileStorageService.SaveFileAsync(file, "profiles", cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(employee.PhotoPath) && employee.PhotoPath.StartsWith("/uploads/"))
+        {
+            _fileStorageService.DeleteFile(employee.PhotoPath);
+        }
+
+        employee.PhotoPath = savedPath;
+        await _employeeRepository.UpdateAsync(employee, cancellationToken);
+        _logger.LogInformation("Updated photo for employee {EmployeeId}", id);
+
+        return ApiResponseDto<EmployeePhotoResponseDto>.Ok(new EmployeePhotoResponseDto
+        {
+            PhotoPath = savedPath
+        }, "Profile photo updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> RemovePhotoAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var employee = await _employeeRepository.GetByIdAsync(id, cancellationToken);
+        if (employee == null)
+        {
+            return ApiResponseDto<bool>.Fail($"Employee with ID {id} was not found.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(employee.PhotoPath) && employee.PhotoPath.StartsWith("/uploads/"))
+        {
+            _fileStorageService.DeleteFile(employee.PhotoPath);
+        }
+
+        employee.PhotoPath = null;
+        await _employeeRepository.UpdateAsync(employee, cancellationToken);
+        _logger.LogInformation("Removed photo for employee {EmployeeId}", id);
+
+        return ApiResponseDto<bool>.Ok(true, "Profile photo removed successfully.");
+    }
+
+    public async Task<ApiResponseDto<EmployeeBackgroundResponseDto>> UpdateBackgroundAsync(int id, Microsoft.AspNetCore.Http.IFormFile file, CancellationToken cancellationToken = default)
+    {
+        var employee = await _employeeRepository.GetByIdAsync(id, cancellationToken);
+        if (employee == null)
+        {
+            return ApiResponseDto<EmployeeBackgroundResponseDto>.Fail($"Employee with ID {id} was not found.");
+        }
+
+        var savedPath = await _fileStorageService.SaveFileAsync(file, "backgrounds", cancellationToken);
+
+        if (!string.IsNullOrWhiteSpace(employee.BackgroundImagePath) && employee.BackgroundImagePath.StartsWith("/uploads/"))
+        {
+            _fileStorageService.DeleteFile(employee.BackgroundImagePath);
+        }
+
+        employee.BackgroundImagePath = savedPath;
+        await _employeeRepository.UpdateAsync(employee, cancellationToken);
+        _logger.LogInformation("Updated background image for employee {EmployeeId}", id);
+
+        return ApiResponseDto<EmployeeBackgroundResponseDto>.Ok(new EmployeeBackgroundResponseDto
+        {
+            BackgroundImagePath = savedPath
+        }, "Background image updated successfully.");
+    }
+
+    public async Task<ApiResponseDto<bool>> RemoveBackgroundAsync(int id, CancellationToken cancellationToken = default)
+    {
+        var employee = await _employeeRepository.GetByIdAsync(id, cancellationToken);
+        if (employee == null)
+        {
+            return ApiResponseDto<bool>.Fail($"Employee with ID {id} was not found.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(employee.BackgroundImagePath) && employee.BackgroundImagePath.StartsWith("/uploads/"))
+        {
+            _fileStorageService.DeleteFile(employee.BackgroundImagePath);
+        }
+
+        employee.BackgroundImagePath = null;
+        await _employeeRepository.UpdateAsync(employee, cancellationToken);
+        _logger.LogInformation("Removed background image for employee {EmployeeId}", id);
+
+        return ApiResponseDto<bool>.Ok(true, "Background image removed successfully.");
     }
 }

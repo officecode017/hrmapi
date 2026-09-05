@@ -99,3 +99,35 @@ public class AdjustLeaveBalanceDto
     public decimal LeavesTaken { get; set; }
     public string? Remark { get; set; }
 }
+
+public class EmployeeLeaveBalanceDetailDto
+{
+    public int Id { get; set; }
+    public int EmployeeId { get; set; }
+    public string EmployeeName { get; set; } = string.Empty;
+    public string EmployeeCode { get; set; } = string.Empty;
+    public string? DepartmentName { get; set; }
+    public string? DesignationName { get; set; }
+    public string? ProfilePictureUrl { get; set; }
+    public int LeaveTypeId { get; set; }
+    public string LeaveTypeName { get; set; } = string.Empty;
+    public int AcademicYearId { get; set; }
+    public DateOnly AcademicYearStartDate { get; set; }
+    public DateOnly AcademicYearEndDate { get; set; }
+    public string AcademicYearName => $"{AcademicYearStartDate:yyyy} - {AcademicYearEndDate:yyyy}";
+    public decimal LeaveCredited { get; set; }
+    public decimal LeaveBroughtForward { get; set; }
+    public decimal LeavesTaken { get; set; }
+    public decimal AvailableBalance => (LeaveCredited + LeaveBroughtForward) - LeavesTaken;
+}
+
+
+public class BulkAllocateLeaveBalanceDto
+{
+    public int OrganizationId { get; set; } = 1;
+    public int AcademicYearId { get; set; }
+    public int? DepartmentId { get; set; }
+    public int? LeaveTypeId { get; set; }
+    public bool OverwriteExisting { get; set; } = false;
+}
+

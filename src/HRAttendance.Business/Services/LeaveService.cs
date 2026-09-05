@@ -300,19 +300,67 @@ public class LeaveService : ILeaveService
 
     public async Task<ApiResponseDto<List<LeaveBalanceDto>>> GetLeaveBalancesAsync(int employeeId, int academicYearId, CancellationToken cancellationToken = default)
     {
-        var balances = await _leaveRepository.GetEmployeeLeaveBalancesAsync(employeeId, academicYearId, cancellationToken);
+        var employee = await _context.Employees
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken);
+        var orgId = employee?.OrganizationId ?? 1;
 
-        var dtos = balances.Select(b => new LeaveBalanceDto
+        if (academicYearId <= 0)
         {
-            LeaveTypeId = b.LeaveTypeId,
-            LeaveTypeName = b.LeaveType.Name,
-            Credited = b.LeaveCredited,
-            BroughtForward = b.LeaveBroughtForward,
-            Taken = b.LeavesTaken
-        }).ToList();
+            var activeYear = await _context.AcademicYears
+                .AsNoTracking()
+                .Where(a => a.OrganizationId == orgId && a.IsActive)
+                .OrderByDescending(a => a.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+            academicYearId = activeYear?.Id ?? 1;
+        }
+
+        var balances = await _context.EmployeeLeaves
+            .AsNoTracking()
+            .Where(el => el.EmployeeId == employeeId && el.AcademicYearId == academicYearId)
+            .Include(el => el.LeaveType)
+            .ToListAsync(cancellationToken);
+
+        var balanceMap = balances.ToDictionary(b => b.LeaveTypeId);
+
+        // Also fetch all active leave types for this organization
+        var leaveTypes = await _context.LeaveTypes
+            .AsNoTracking()
+            .Include(lt => lt.LeaveSetting)
+            .Where(lt => lt.OrganizationId == orgId && lt.IsActive && !lt.IsDeleted)
+            .ToListAsync(cancellationToken);
+
+        var dtos = new List<LeaveBalanceDto>();
+        foreach (var lt in leaveTypes)
+        {
+            if (balanceMap.TryGetValue(lt.Id, out var b))
+            {
+                dtos.Add(new LeaveBalanceDto
+                {
+                    LeaveTypeId = b.LeaveTypeId,
+                    LeaveTypeName = b.LeaveType?.Name ?? lt.Name,
+                    Credited = b.LeaveCredited,
+                    BroughtForward = b.LeaveBroughtForward,
+                    Taken = b.LeavesTaken
+                });
+            }
+            else
+            {
+                var standardQuota = lt.LeaveSetting?.Leaves ?? 12;
+                dtos.Add(new LeaveBalanceDto
+                {
+                    LeaveTypeId = lt.Id,
+                    LeaveTypeName = lt.Name,
+                    Credited = standardQuota,
+                    BroughtForward = 0,
+                    Taken = 0
+                });
+            }
+        }
 
         return ApiResponseDto<List<LeaveBalanceDto>>.Ok(dtos);
     }
+
 
     public async Task<ApiResponseDto<bool>> AdjustLeaveBalanceAsync(AdjustLeaveBalanceDto request, CancellationToken cancellationToken = default)
     {
@@ -351,4 +399,165 @@ public class LeaveService : ILeaveService
 
         return ApiResponseDto<bool>.Ok(true, "Employee leave balance adjusted successfully.");
     }
+
+    public async Task<ApiResponseDto<List<EmployeeLeaveBalanceDetailDto>>> GetAllLeaveBalancesAsync(
+        int organizationId,
+        int? academicYearId,
+        int? departmentId,
+        int? leaveTypeId,
+        string? search,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.EmployeeLeaves
+            .AsNoTracking()
+            .Include(el => el.Employee)
+                .ThenInclude(e => e.ProfessionalDetails)
+                    .ThenInclude(p => p!.Department)
+            .Include(el => el.Employee)
+                .ThenInclude(e => e.ProfessionalDetails)
+                    .ThenInclude(p => p!.Designation)
+            .Include(el => el.LeaveType)
+            .Include(el => el.AcademicYear)
+            .Where(el => el.OrganizationId == organizationId);
+
+        if (academicYearId.HasValue && academicYearId.Value > 0)
+        {
+            query = query.Where(el => el.AcademicYearId == academicYearId.Value);
+        }
+
+        if (departmentId.HasValue && departmentId.Value > 0)
+        {
+            query = query.Where(el => el.Employee.ProfessionalDetails != null && el.Employee.ProfessionalDetails.DepartmentId == departmentId.Value);
+        }
+
+        if (leaveTypeId.HasValue && leaveTypeId.Value > 0)
+        {
+            query = query.Where(el => el.LeaveTypeId == leaveTypeId.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchLower = search.Trim().ToLower();
+            query = query.Where(el =>
+                (el.Employee.FirstName != null && el.Employee.FirstName.ToLower().Contains(searchLower)) ||
+                (el.Employee.LastName != null && el.Employee.LastName.ToLower().Contains(searchLower)) ||
+                (el.Employee.EmployeeCode != null && el.Employee.EmployeeCode.ToLower().Contains(searchLower)));
+        }
+
+        var list = await query
+            .OrderBy(el => el.Employee.FirstName)
+            .ThenBy(el => el.LeaveType.Name)
+            .Select(el => new EmployeeLeaveBalanceDetailDto
+            {
+                Id = el.Id,
+                EmployeeId = el.EmployeeId,
+                EmployeeName = $"{el.Employee.FirstName} {el.Employee.LastName}".Trim(),
+                EmployeeCode = el.Employee.EmployeeCode,
+                DepartmentName = el.Employee.ProfessionalDetails != null && el.Employee.ProfessionalDetails.Department != null ? el.Employee.ProfessionalDetails.Department.Name : null,
+                DesignationName = el.Employee.ProfessionalDetails != null && el.Employee.ProfessionalDetails.Designation != null ? el.Employee.ProfessionalDetails.Designation.Name : null,
+                ProfilePictureUrl = el.Employee.PhotoPath,
+                LeaveTypeId = el.LeaveTypeId,
+                LeaveTypeName = el.LeaveType.Name,
+                AcademicYearId = el.AcademicYearId,
+                AcademicYearStartDate = el.AcademicYear.StartDate,
+                AcademicYearEndDate = el.AcademicYear.EndDate,
+                LeaveCredited = el.LeaveCredited,
+                LeaveBroughtForward = el.LeaveBroughtForward,
+                LeavesTaken = el.LeavesTaken
+            })
+            .ToListAsync(cancellationToken);
+
+        return ApiResponseDto<List<EmployeeLeaveBalanceDetailDto>>.Ok(list);
+    }
+
+    public async Task<ApiResponseDto<int>> BulkAllocateLeaveBalancesAsync(
+        BulkAllocateLeaveBalanceDto request,
+        CancellationToken cancellationToken = default)
+    {
+        var academicYear = await _context.AcademicYears.FirstOrDefaultAsync(ay => ay.Id == request.AcademicYearId, cancellationToken);
+        if (academicYear == null)
+        {
+            return ApiResponseDto<int>.Fail("Selected academic year not found.");
+        }
+
+        var employeesQuery = _context.Employees
+            .Include(e => e.ProfessionalDetails)
+            .Where(e => e.OrganizationId == request.OrganizationId && e.IsActive && !e.IsDeleted);
+
+        if (request.DepartmentId.HasValue && request.DepartmentId.Value > 0)
+        {
+            employeesQuery = employeesQuery.Where(e => e.ProfessionalDetails != null && e.ProfessionalDetails.DepartmentId == request.DepartmentId.Value);
+        }
+
+
+        var employees = await employeesQuery.ToListAsync(cancellationToken);
+        if (!employees.Any())
+        {
+            return ApiResponseDto<int>.Fail("No active employees found matching the criteria.");
+        }
+
+        var leaveTypesQuery = _context.LeaveTypes
+            .Include(lt => lt.LeaveSetting)
+            .Where(lt => lt.OrganizationId == request.OrganizationId && lt.IsActive && !lt.IsDeleted);
+
+        if (request.LeaveTypeId.HasValue && request.LeaveTypeId.Value > 0)
+        {
+            leaveTypesQuery = leaveTypesQuery.Where(lt => lt.Id == request.LeaveTypeId.Value);
+        }
+
+        var leaveTypes = await leaveTypesQuery.ToListAsync(cancellationToken);
+        if (!leaveTypes.Any())
+        {
+            return ApiResponseDto<int>.Fail("No active leave types found to allocate.");
+        }
+
+        var empIds = employees.Select(e => e.Id).ToList();
+        var ltIds = leaveTypes.Select(lt => lt.Id).ToList();
+
+        var existingBalances = await _context.EmployeeLeaves
+            .Where(el => el.AcademicYearId == request.AcademicYearId && empIds.Contains(el.EmployeeId) && ltIds.Contains(el.LeaveTypeId))
+            .ToListAsync(cancellationToken);
+
+        var existingLookup = existingBalances.ToDictionary(el => (el.EmployeeId, el.LeaveTypeId));
+
+        int count = 0;
+        foreach (var emp in employees)
+        {
+            foreach (var lt in leaveTypes)
+            {
+                var standardQuota = lt.LeaveSetting?.Leaves ?? 12;
+
+                if (existingLookup.TryGetValue((emp.Id, lt.Id), out var existing))
+                {
+                    if (request.OverwriteExisting)
+                    {
+                        existing.LeaveCredited = standardQuota;
+                        _context.EmployeeLeaves.Update(existing);
+                        count++;
+                    }
+                }
+                else
+                {
+                    var newBalance = new EmployeeLeave
+                    {
+                        OrganizationId = request.OrganizationId,
+                        EmployeeId = emp.Id,
+                        LeaveTypeId = lt.Id,
+                        AcademicYearId = request.AcademicYearId,
+                        LeaveCredited = standardQuota,
+                        LeaveBroughtForward = 0,
+                        LeavesTaken = 0
+                    };
+                    await _context.EmployeeLeaves.AddAsync(newBalance, cancellationToken);
+                    count++;
+                }
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        _logger.LogInformation("Bulk allocated leave balances for {Count} entries in academic year {YearId}", count, request.AcademicYearId);
+
+        return ApiResponseDto<int>.Ok(count, $"Successfully allocated/updated leave balances for {count} records.");
+    }
 }
+

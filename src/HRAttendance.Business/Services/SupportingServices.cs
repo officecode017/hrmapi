@@ -446,8 +446,11 @@ public class RoleService : IRoleService
         var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == request.RoleId, cancellationToken);
         if (role == null) return ApiResponseDto<bool>.Fail("Role not found.");
 
-        var exists = await _context.EmployeeRoles.AnyAsync(er => er.EmployeeId == request.EmployeeId && er.RoleId == request.RoleId, cancellationToken);
-        if (!exists)
+        var existing = await _context.EmployeeRoles
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(er => er.EmployeeId == request.EmployeeId && er.RoleId == request.RoleId, cancellationToken);
+
+        if (existing == null)
         {
             await _context.EmployeeRoles.AddAsync(new EmployeeRole
             {
@@ -456,6 +459,11 @@ public class RoleService : IRoleService
                 RoleId = request.RoleId
             }, cancellationToken);
 
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        else if (existing.IsDeleted)
+        {
+            existing.IsDeleted = false;
             await _context.SaveChangesAsync(cancellationToken);
         }
 
@@ -482,21 +490,38 @@ public class RoleService : IRoleService
 
     public async Task<ApiResponseDto<bool>> AssignRolePermissionsAsync(AssignRolePermissionsDto request, CancellationToken cancellationToken = default)
     {
-        var role = await _context.Roles
-            .Include(r => r.RolePermissions)
-            .FirstOrDefaultAsync(r => r.Id == request.RoleId, cancellationToken);
-
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == request.RoleId, cancellationToken);
         if (role == null) return ApiResponseDto<bool>.Fail("Role not found.");
 
-        _context.RolePermissions.RemoveRange(role.RolePermissions);
+        var existing = await _context.RolePermissions
+            .IgnoreQueryFilters()
+            .Where(rp => rp.RoleId == request.RoleId)
+            .ToListAsync(cancellationToken);
 
-        foreach (var permId in request.PermissionIds)
+        var requestedPermIds = request.PermissionIds.Distinct().ToHashSet();
+
+        // 1. Mark unselected as deleted
+        foreach (var rp in existing.Where(rp => !requestedPermIds.Contains(rp.PermissionId) && !rp.IsDeleted))
         {
-            role.RolePermissions.Add(new RolePermission
+            rp.IsDeleted = true;
+        }
+
+        // 2. Reactivate previously deleted ones
+        foreach (var rp in existing.Where(rp => requestedPermIds.Contains(rp.PermissionId) && rp.IsDeleted))
+        {
+            rp.IsDeleted = false;
+        }
+
+        // 3. Add brand new permissions
+        var existingPermIds = existing.Select(rp => rp.PermissionId).ToHashSet();
+        foreach (var permId in requestedPermIds.Where(p => !existingPermIds.Contains(p)))
+        {
+            _context.RolePermissions.Add(new RolePermission
             {
                 OrganizationId = role.OrganizationId,
                 RoleId = role.Id,
-                PermissionId = permId
+                PermissionId = permId,
+                IsDeleted = false
             });
         }
 
@@ -853,6 +878,7 @@ public class LocationService : ILocationService
             Latitude = l.Latitude,
             Longitude = l.Longitude,
             Radius = l.Radius,
+            EnforceGeofence = l.EnforceGeofence,
             TimeZoneValue = l.TimeZoneValue
         }).ToList();
 
@@ -877,6 +903,7 @@ public class LocationService : ILocationService
             Latitude = l.Latitude,
             Longitude = l.Longitude,
             Radius = l.Radius,
+            EnforceGeofence = l.EnforceGeofence,
             TimeZoneValue = l.TimeZoneValue
         };
 
@@ -894,6 +921,7 @@ public class LocationService : ILocationService
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             Radius = request.Radius,
+            EnforceGeofence = request.EnforceGeofence,
             TimeZoneValue = request.TimeZoneValue?.Trim()
         };
 
@@ -914,11 +942,16 @@ public class LocationService : ILocationService
         location.Latitude = request.Latitude;
         location.Longitude = request.Longitude;
         location.Radius = request.Radius;
+        if (request.EnforceGeofence.HasValue)
+        {
+            location.EnforceGeofence = request.EnforceGeofence.Value;
+        }
         location.TimeZoneValue = request.TimeZoneValue?.Trim();
 
         await _context.SaveChangesAsync(cancellationToken);
         return ApiResponseDto<bool>.Ok(true, "Location updated successfully.");
     }
+
 
     public async Task<ApiResponseDto<bool>> DeleteLocationAsync(int id, CancellationToken cancellationToken = default)
     {
@@ -1161,6 +1194,246 @@ public class OffDayService : IOffDayService
         offDay.IsDeleted = true;
         await _context.SaveChangesAsync(cancellationToken);
         return ApiResponseDto<bool>.Ok(true, "Off Day deleted successfully.");
+    }
+
+    public async Task<ApiResponseDto<List<OffDayDto>>> SaveOffDayMatrixAsync(SaveOffDayMatrixDto request, CancellationToken cancellationToken = default)
+    {
+        if (request.RoleId <= 0) return ApiResponseDto<List<OffDayDto>>.Fail("Valid Role ID is required.");
+        if (request.LocationId <= 0) return ApiResponseDto<List<OffDayDto>>.Fail("Valid Location ID is required.");
+
+        var role = await _context.Roles.FirstOrDefaultAsync(r => r.Id == request.RoleId, cancellationToken);
+        if (role == null) return ApiResponseDto<List<OffDayDto>>.Fail("Role not found.");
+
+        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == request.LocationId, cancellationToken);
+        if (location == null) return ApiResponseDto<List<OffDayDto>>.Fail("Location not found.");
+
+        var existingRecords = await _context.OffDays
+            .IgnoreQueryFilters()
+            .Where(o => o.OrganizationId == request.OrganizationId
+                     && o.AcademicYearId == request.AcademicYearId
+                     && o.LocationId == request.LocationId
+                     && o.RoleId == request.RoleId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var dayItem in request.Days)
+        {
+            var dayName = dayItem.OffDayName.Trim();
+            if (string.IsNullOrWhiteSpace(dayName)) continue;
+
+            var existing = existingRecords.FirstOrDefault(o => o.OffDayName.Equals(dayName, StringComparison.OrdinalIgnoreCase));
+
+            bool hasAnyWeek = dayItem.Week1 || dayItem.Week2 || dayItem.Week3 || dayItem.Week4 || dayItem.Week5 || dayItem.Week6;
+            bool isOffDay = (dayItem.WorkDayType == 1 || dayItem.WorkDayType == 2) && hasAnyWeek;
+
+            if (isOffDay)
+            {
+                if (existing != null)
+                {
+                    existing.WorkDayType = dayItem.WorkDayType;
+                    existing.Week1 = dayItem.Week1;
+                    existing.Week2 = dayItem.Week2;
+                    existing.Week3 = dayItem.Week3;
+                    existing.Week4 = dayItem.Week4;
+                    existing.Week5 = dayItem.Week5;
+                    existing.Week6 = dayItem.Week6;
+                    existing.IsDeleted = false;
+                }
+                else
+                {
+                    var newOffDay = new OffDay
+                    {
+                        OrganizationId = request.OrganizationId,
+                        AcademicYearId = request.AcademicYearId,
+                        LocationId = request.LocationId,
+                        RoleId = request.RoleId,
+                        OffDayName = dayName,
+                        WorkDayType = dayItem.WorkDayType,
+                        Week1 = dayItem.Week1,
+                        Week2 = dayItem.Week2,
+                        Week3 = dayItem.Week3,
+                        Week4 = dayItem.Week4,
+                        Week5 = dayItem.Week5,
+                        Week6 = dayItem.Week6,
+                        IsDeleted = false
+                    };
+                    await _context.OffDays.AddAsync(newOffDay, cancellationToken);
+                }
+            }
+            else
+            {
+                if (existing != null && !existing.IsDeleted)
+                {
+                    existing.IsDeleted = true;
+                }
+            }
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return await GetOffDaysAsync(request.OrganizationId, request.AcademicYearId, cancellationToken);
+    }
+
+    public async Task<ApiResponseDto<List<OffDayDto>>> GetOffDayMatrixAsync(int organizationId, int academicYearId, int? roleId = null, int? locationId = null, bool includeWorkingDays = true, CancellationToken cancellationToken = default)
+    {
+        var query = _context.OffDays
+            .AsNoTracking()
+            .Include(o => o.Location)
+            .Include(o => o.Role)
+            .Where(o => o.OrganizationId == organizationId && o.AcademicYearId == academicYearId);
+
+        if (roleId.HasValue && roleId.Value > 0)
+        {
+            query = query.Where(o => o.RoleId == roleId.Value);
+        }
+
+        if (locationId.HasValue && locationId.Value > 0)
+        {
+            query = query.Where(o => o.LocationId == locationId.Value);
+        }
+
+        var existingOffDays = await query.ToListAsync(cancellationToken);
+
+        if (!includeWorkingDays)
+        {
+            var rawDtos = existingOffDays.Select(o => new OffDayDto
+            {
+                Id = o.Id,
+                OrganizationId = o.OrganizationId,
+                AcademicYearId = o.AcademicYearId,
+                LocationId = o.LocationId,
+                LocationName = o.Location?.Name,
+                RoleId = o.RoleId,
+                RoleName = o.Role?.Name,
+                OffDayName = o.OffDayName,
+                WorkDayType = o.WorkDayType,
+                Week1 = o.Week1,
+                Week2 = o.Week2,
+                Week3 = o.Week3,
+                Week4 = o.Week4,
+                Week5 = o.Week5,
+                Week6 = o.Week6
+            }).ToList();
+            return ApiResponseDto<List<OffDayDto>>.Ok(rawDtos);
+        }
+
+        var weekdays = new[] { "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday" };
+        var resultDtos = new List<OffDayDto>();
+
+        if (roleId.HasValue && locationId.HasValue)
+        {
+            var role = await _context.Roles.AsNoTracking().FirstOrDefaultAsync(r => r.Id == roleId.Value, cancellationToken);
+            var location = await _context.Locations.AsNoTracking().FirstOrDefaultAsync(l => l.Id == locationId.Value, cancellationToken);
+
+            foreach (var day in weekdays)
+            {
+                var match = existingOffDays.FirstOrDefault(o => o.OffDayName.Equals(day, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    resultDtos.Add(new OffDayDto
+                    {
+                        Id = match.Id,
+                        OrganizationId = match.OrganizationId,
+                        AcademicYearId = match.AcademicYearId,
+                        LocationId = match.LocationId,
+                        LocationName = match.Location?.Name ?? location?.Name,
+                        RoleId = match.RoleId,
+                        RoleName = match.Role?.Name ?? role?.Name,
+                        OffDayName = match.OffDayName,
+                        WorkDayType = match.WorkDayType,
+                        Week1 = match.Week1,
+                        Week2 = match.Week2,
+                        Week3 = match.Week3,
+                        Week4 = match.Week4,
+                        Week5 = match.Week5,
+                        Week6 = match.Week6
+                    });
+                }
+                else
+                {
+                    resultDtos.Add(new OffDayDto
+                    {
+                        Id = 0,
+                        OrganizationId = organizationId,
+                        AcademicYearId = academicYearId,
+                        LocationId = locationId.Value,
+                        LocationName = location?.Name,
+                        RoleId = roleId.Value,
+                        RoleName = role?.Name,
+                        OffDayName = day,
+                        WorkDayType = 0, // 0: Working Day
+                        Week1 = false,
+                        Week2 = false,
+                        Week3 = false,
+                        Week4 = false,
+                        Week5 = false,
+                        Week6 = false
+                    });
+                }
+            }
+        }
+        else
+        {
+            var roles = await _context.Roles.AsNoTracking().Where(r => r.OrganizationId == organizationId).ToListAsync(cancellationToken);
+            var locations = await _context.Locations.AsNoTracking().Where(l => l.OrganizationId == organizationId).ToListAsync(cancellationToken);
+
+            foreach (var r in roles)
+            {
+                foreach (var loc in locations)
+                {
+                    var pairOffDays = existingOffDays.Where(o => o.RoleId == r.Id && o.LocationId == loc.Id).ToList();
+                    if (pairOffDays.Any() || (roleId.HasValue && roleId.Value == r.Id))
+                    {
+                        foreach (var day in weekdays)
+                        {
+                            var match = pairOffDays.FirstOrDefault(o => o.OffDayName.Equals(day, StringComparison.OrdinalIgnoreCase));
+                            if (match != null)
+                            {
+                                resultDtos.Add(new OffDayDto
+                                {
+                                    Id = match.Id,
+                                    OrganizationId = match.OrganizationId,
+                                    AcademicYearId = match.AcademicYearId,
+                                    LocationId = match.LocationId,
+                                    LocationName = loc.Name,
+                                    RoleId = r.Id,
+                                    RoleName = r.Name,
+                                    OffDayName = match.OffDayName,
+                                    WorkDayType = match.WorkDayType,
+                                    Week1 = match.Week1,
+                                    Week2 = match.Week2,
+                                    Week3 = match.Week3,
+                                    Week4 = match.Week4,
+                                    Week5 = match.Week5,
+                                    Week6 = match.Week6
+                                });
+                            }
+                            else
+                            {
+                                resultDtos.Add(new OffDayDto
+                                {
+                                    Id = 0,
+                                    OrganizationId = organizationId,
+                                    AcademicYearId = academicYearId,
+                                    LocationId = loc.Id,
+                                    LocationName = loc.Name,
+                                    RoleId = r.Id,
+                                    RoleName = r.Name,
+                                    OffDayName = day,
+                                    WorkDayType = 0, // 0: Working Day
+                                    Week1 = false,
+                                    Week2 = false,
+                                    Week3 = false,
+                                    Week4 = false,
+                                    Week5 = false,
+                                    Week6 = false
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return ApiResponseDto<List<OffDayDto>>.Ok(resultDtos);
     }
 }
 

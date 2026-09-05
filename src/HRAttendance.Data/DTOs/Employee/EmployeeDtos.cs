@@ -10,6 +10,7 @@ public class EmployeeListDto
     public string? Mobile { get; set; }
     public string? DepartmentName { get; set; }
     public string? DesignationName { get; set; }
+    public string? PhotoPath { get; set; }
     public bool IsActive { get; set; }
 }
 
@@ -36,6 +37,7 @@ public class EmployeeDto
     public string? Qualification { get; set; }
     public string? SkillSet { get; set; }
     public string? PhotoPath { get; set; }
+    public string? BackgroundImagePath { get; set; }
     public bool IsActive { get; set; }
     public DateOnly? ResignationDate { get; set; }
     public DateOnly? LastWorkingDay { get; set; }
@@ -75,6 +77,7 @@ public class EmployeeDto
     public int? NoticePeriodDays { get; set; }
 
     public List<string> Roles { get; set; } = new();
+    public List<int> RoleIds { get; set; } = new();
 }
 
 public class CreateEmployeeDto
@@ -97,7 +100,10 @@ public class CreateEmployeeDto
     public string? EmployeeType { get; set; } = "Full-Time";
     public string? Qualification { get; set; }
     public string? SkillSet { get; set; }
+    public string? PhotoPath { get; set; }
+    public string? BackgroundImagePath { get; set; }
     public string Password { get; set; } = string.Empty;
+
 
     // Contact
     public string WorkEmail { get; set; } = string.Empty;
@@ -179,4 +185,18 @@ public class UpdateEmployeeDto
     public DateOnly? ConfirmationDate { get; set; }
     public DateOnly? ContractEndDate { get; set; }
     public int? NoticePeriodDays { get; set; }
+    public List<int>? RoleIds { get; set; }
+    public string? Password { get; set; }
+    public string? PhotoPath { get; set; }
+    public string? BackgroundImagePath { get; set; }
+}
+
+public class EmployeePhotoResponseDto
+{
+    public string PhotoPath { get; set; } = string.Empty;
+}
+
+public class EmployeeBackgroundResponseDto
+{
+    public string BackgroundImagePath { get; set; } = string.Empty;
 }

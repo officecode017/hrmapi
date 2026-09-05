@@ -37,3 +37,9 @@ appsettings.Production.json
 ## Operating System files
 .DS_Store
 Thumbs.db
+
+## Local uploads and test outputs
+src/HRAttendance.API/uploads/*
+!src/HRAttendance.API/uploads/.gitkeep
+api_test_*
+

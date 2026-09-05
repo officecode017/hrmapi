@@ -40,8 +40,10 @@ public class LocationConfiguration : IEntityTypeConfiguration<Location>
         builder.Property(x => x.Name).IsRequired().HasMaxLength(150);
         builder.Property(x => x.Latitude).HasPrecision(10, 7);
         builder.Property(x => x.Longitude).HasPrecision(10, 7);
+        builder.Property(x => x.EnforceGeofence).HasDefaultValue(false);
 
         builder.HasOne(x => x.Organization)
+
             .WithMany(x => x.Locations)
             .HasForeignKey(x => x.OrganizationId)
             .OnDelete(DeleteBehavior.Restrict);

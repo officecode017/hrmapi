@@ -76,9 +76,9 @@ public class LeaveController : ControllerBase
 
     [HttpGet("balances")]
     [ProducesResponseType(typeof(ApiResponseDto<List<LeaveBalanceDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetLeaveBalances([FromQuery] int employeeId, [FromQuery] int academicYearId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetLeaveBalances([FromQuery] int employeeId, [FromQuery] int? academicYearId, CancellationToken cancellationToken)
     {
-        var result = await _leaveService.GetLeaveBalancesAsync(employeeId, academicYearId, cancellationToken);
+        var result = await _leaveService.GetLeaveBalancesAsync(employeeId, academicYearId ?? 0, cancellationToken);
         return Ok(result);
     }
 
@@ -105,7 +105,34 @@ public class LeaveController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("balances/all")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin},{ApplicationRoles.Manager}")]
+    [ProducesResponseType(typeof(ApiResponseDto<List<EmployeeLeaveBalanceDetailDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAllLeaveBalances(
+        [FromQuery] int organizationId = 1,
+        [FromQuery] int? academicYearId = null,
+        [FromQuery] int? departmentId = null,
+        [FromQuery] int? leaveTypeId = null,
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _leaveService.GetAllLeaveBalancesAsync(organizationId, academicYearId, departmentId, leaveTypeId, search, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("balances/bulk-allocate")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin}")]
+    [ProducesResponseType(typeof(ApiResponseDto<int>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> BulkAllocateLeaveBalances([FromBody] BulkAllocateLeaveBalanceDto request, CancellationToken cancellationToken)
+    {
+        var result = await _leaveService.BulkAllocateLeaveBalancesAsync(request, cancellationToken);
+        if (!result.Success) return BadRequest(result);
+        return Ok(result);
+    }
+
     private int GetCurrentUserId()
+
     {
         return User.TryGetEmployeeId() ?? 1;
     }

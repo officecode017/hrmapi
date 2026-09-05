@@ -15,6 +15,8 @@ public class EmployeeConfiguration : IEntityTypeConfiguration<Employee>
         builder.Property(x => x.FirstName).HasMaxLength(100);
         builder.Property(x => x.LastName).HasMaxLength(100);
         builder.Property(x => x.PasswordHash).HasMaxLength(255);
+        builder.Property(x => x.PhotoPath).HasMaxLength(500);
+        builder.Property(x => x.BackgroundImagePath).HasMaxLength(500);
 
         builder.HasIndex(x => new { x.OrganizationId, x.EmployeeCode }).IsUnique();
 

@@ -49,3 +49,25 @@ public class UpdateOffDayDto
     public bool Week5 { get; set; }
     public bool Week6 { get; set; }
 }
+
+public class SaveOffDayMatrixDto
+{
+    public int OrganizationId { get; set; } = 1;
+    public int AcademicYearId { get; set; } = 1;
+    public int LocationId { get; set; }
+    public int RoleId { get; set; }
+    public List<OffDayMatrixItemDto> Days { get; set; } = new();
+}
+
+public class OffDayMatrixItemDto
+{
+    public string OffDayName { get; set; } = string.Empty; // e.g. "Monday", "Tuesday", etc.
+    public int WorkDayType { get; set; } // 0: Working, 1: Full Day Off, 2: Half Day Off
+    public bool Week1 { get; set; }
+    public bool Week2 { get; set; }
+    public bool Week3 { get; set; }
+    public bool Week4 { get; set; }
+    public bool Week5 { get; set; }
+    public bool Week6 { get; set; }
+}
+

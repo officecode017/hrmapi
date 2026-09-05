@@ -82,8 +82,8 @@ public class AttendanceService : IAttendanceService
         var targetLocationId = request.LocationId > 0 ? request.LocationId : (employee.ProfessionalDetails?.LocationId ?? shift.LocationId);
         var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == targetLocationId, cancellationToken);
 
-        // 3. BUSINESS RULE: Geofence Validation
-        if (location != null && location.Latitude.HasValue && location.Longitude.HasValue && location.Radius.HasValue && location.Radius.Value > 0)
+        // 3. BUSINESS RULE: Geofence Validation (Optional / Configurable per campus location)
+        if (location != null && location.EnforceGeofence && location.Latitude.HasValue && location.Longitude.HasValue && location.Radius.HasValue && location.Radius.Value > 0)
         {
             if (request.Latitude.HasValue && request.Longitude.HasValue)
             {
@@ -97,6 +97,7 @@ public class AttendanceService : IAttendanceService
                 }
             }
         }
+
 
         // 4. BUSINESS RULE: Check if today is an official Holiday
         string? dynamicRemark = request.Remark;

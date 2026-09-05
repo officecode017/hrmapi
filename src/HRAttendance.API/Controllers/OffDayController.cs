@@ -69,4 +69,29 @@ public class OffDayController : ControllerBase
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
+
+    [HttpPost("matrix")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin}")]
+    [ProducesResponseType(typeof(ApiResponseDto<List<OffDayDto>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SaveOffDayMatrix([FromBody] SaveOffDayMatrixDto request, CancellationToken cancellationToken)
+    {
+        var result = await _offDayService.SaveOffDayMatrixAsync(request, cancellationToken);
+        if (!result.Success) return BadRequest(result);
+        return Ok(result);
+    }
+
+    [HttpGet("matrix")]
+    [ProducesResponseType(typeof(ApiResponseDto<List<OffDayDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetOffDayMatrix(
+        [FromQuery] int organizationId = 1,
+        [FromQuery] int academicYearId = 1,
+        [FromQuery] int? roleId = null,
+        [FromQuery] int? locationId = null,
+        [FromQuery] bool includeWorkingDays = true,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _offDayService.GetOffDayMatrixAsync(organizationId, academicYearId, roleId, locationId, includeWorkingDays, cancellationToken);
+        return Ok(result);
+    }
 }

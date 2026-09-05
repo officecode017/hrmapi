@@ -98,6 +98,8 @@ public interface IOffDayService
     Task<ApiResponseDto<OffDayDto>> CreateOffDayAsync(CreateOffDayDto request, CancellationToken cancellationToken = default);
     Task<ApiResponseDto<bool>> UpdateOffDayAsync(int id, UpdateOffDayDto request, CancellationToken cancellationToken = default);
     Task<ApiResponseDto<bool>> DeleteOffDayAsync(int id, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<OffDayDto>>> SaveOffDayMatrixAsync(SaveOffDayMatrixDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<OffDayDto>>> GetOffDayMatrixAsync(int organizationId, int academicYearId, int? roleId = null, int? locationId = null, bool includeWorkingDays = true, CancellationToken cancellationToken = default);
 }
 
 public interface ILeaveTypeService

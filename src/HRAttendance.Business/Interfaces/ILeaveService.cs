@@ -12,4 +12,7 @@ public interface ILeaveService
     Task<ApiResponseDto<bool>> CancelLeaveAsync(int leaveApplicationId, int employeeId, bool isAdmin = false, CancellationToken cancellationToken = default);
     Task<ApiResponseDto<List<LeaveBalanceDto>>> GetLeaveBalancesAsync(int employeeId, int academicYearId, CancellationToken cancellationToken = default);
     Task<ApiResponseDto<bool>> AdjustLeaveBalanceAsync(AdjustLeaveBalanceDto request, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<List<EmployeeLeaveBalanceDetailDto>>> GetAllLeaveBalancesAsync(int organizationId, int? academicYearId, int? departmentId, int? leaveTypeId, string? search, CancellationToken cancellationToken = default);
+    Task<ApiResponseDto<int>> BulkAllocateLeaveBalancesAsync(BulkAllocateLeaveBalanceDto request, CancellationToken cancellationToken = default);
 }
+

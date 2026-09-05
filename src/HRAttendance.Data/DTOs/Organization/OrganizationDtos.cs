@@ -15,8 +15,22 @@ public class OrganizationDto
     public string? Industry { get; set; }
     public string? TaxId { get; set; }
     public string? LogoPath { get; set; }
+    public string? LogoUrl { get; set; }
     public string? Currency { get; set; }
     public int? FiscalYearStartMonth { get; set; }
+}
+
+public class OrganizationBrandingDto
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? LogoUrl { get; set; }
+    public string? Website { get; set; }
+}
+
+public class OrganizationLogoResponseDto
+{
+    public string LogoUrl { get; set; } = string.Empty;
 }
 
 public class CreateOrganizationDto
