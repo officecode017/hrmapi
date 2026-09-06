@@ -4,6 +4,7 @@ using HRAttendance.Business.Interfaces;
 using HRAttendance.Data.DTOs.Attendance;
 using HRAttendance.Data.DTOs.Common;
 using HRAttendance.API.Extensions;
+using HRAttendance.Business.BusinessRules;
 
 namespace HRAttendance.API.Controllers;
 
@@ -87,6 +88,23 @@ public class AttendanceController : ControllerBase
     public async Task<IActionResult> GetTodayForEmployee(int employeeId, CancellationToken cancellationToken)
     {
         var result = await _attendanceService.GetTodayStatusAsync(employeeId, cancellationToken);
+        return Ok(result);
+    }
+
+    [HttpPost("admin/mark")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin}")]
+    [ProducesResponseType(typeof(ApiResponseDto<AttendanceDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AdminMarkAttendance([FromBody] AdminMarkAttendanceRequestDto request, CancellationToken cancellationToken)
+    {
+        if (request.EmployeeId <= 0)
+        {
+            return BadRequest(ApiResponseDto<AttendanceDto>.Fail("Employee ID is required."));
+        }
+
+        var adminUserId = User.GetEmployeeId();
+        var result = await _attendanceService.AdminMarkAttendanceAsync(request, adminUserId, cancellationToken);
+        if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
 }

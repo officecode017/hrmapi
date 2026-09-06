@@ -339,6 +339,7 @@ public class DashboardService : IDashboardService
             // Resolution hierarchy
             if (dayPunch != null && dayPunch.InTime.HasValue)
             {
+                calendarDay.AttendanceId = dayPunch.Id;
                 calendarDay.Status = "Present";
                 calendarDay.CheckInTime = dayPunch.InTime;
                 calendarDay.CheckOutTime = dayPunch.OutTime;

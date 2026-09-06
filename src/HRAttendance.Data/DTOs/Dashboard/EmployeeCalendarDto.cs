@@ -28,6 +28,7 @@ public class CalendarMonthSummaryDto
 
 public class CalendarDayDto
 {
+    public int? AttendanceId { get; set; }
     public DateOnly Date { get; set; }
     public int DayOfMonth { get; set; }
     public string DayOfWeek { get; set; } = string.Empty;

@@ -244,6 +244,8 @@ public class AttendanceService : IAttendanceService
         var dtos = records.Select(a => new AttendanceHistoryDto
         {
             Id = a.Id,
+            EmployeeId = a.EmployeeId,
+            EmployeeName = a.Employee != null ? $"{a.Employee.FirstName} {a.Employee.LastName}".Trim() : string.Empty,
             Date = a.InTime.HasValue ? DateOnly.FromDateTime(a.InTime.Value.DateTime) : DateOnly.MinValue,
             InTime = a.InTime,
             OutTime = a.OutTime,
@@ -273,6 +275,162 @@ public class AttendanceService : IAttendanceService
         var result = await MapToDtoAsync(attendance.Id, cancellationToken);
         if (!result.Success) return ApiResponseDto<AttendanceDto?>.Fail(result.Message ?? "Attendance not found.");
         return ApiResponseDto<AttendanceDto?>.Ok(result.Data);
+    }
+
+    public async Task<ApiResponseDto<AttendanceDto>> AdminMarkAttendanceAsync(AdminMarkAttendanceRequestDto request, int adminUserId, CancellationToken cancellationToken = default)
+    {
+        var employee = await _context.Employees
+            .Include(e => e.ProfessionalDetails)
+            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
+
+        if (employee == null)
+        {
+            return ApiResponseDto<AttendanceDto>.Fail("Employee not found.");
+        }
+
+        // Parse status string to AttendanceStatus
+        int statusInt = request.Status?.Trim().ToLowerInvariant() switch
+        {
+            "present" => (int)AttendanceStatus.Present,
+            "late" => (int)AttendanceStatus.Late,
+            "halfday" or "halfdayleave" => (int)AttendanceStatus.HalfDay,
+            "absent" => (int)AttendanceStatus.Absent,
+            "onleave" => (int)AttendanceStatus.OnLeave,
+            "holiday" => (int)AttendanceStatus.Holiday,
+            "weekend" or "weeklyoff" => (int)AttendanceStatus.Weekend,
+            _ => (int)AttendanceStatus.Present
+        };
+
+        // Construct InTime and OutTime DateTimeOffsets
+        DateTimeOffset? inDateTime = null;
+        DateTimeOffset? outDateTime = null;
+        decimal? dayTotal = null;
+
+        if (request.InTime.HasValue)
+        {
+            inDateTime = new DateTimeOffset(request.Date.ToDateTime(request.InTime.Value), TimeSpan.Zero);
+        }
+
+        if (request.OutTime.HasValue)
+        {
+            outDateTime = new DateTimeOffset(request.Date.ToDateTime(request.OutTime.Value), TimeSpan.Zero);
+        }
+
+        if (inDateTime.HasValue && outDateTime.HasValue)
+        {
+            var duration = outDateTime.Value - inDateTime.Value;
+            dayTotal = Math.Round((decimal)Math.Max(0, duration.TotalHours), 2);
+        }
+
+        // Determine if target record exists:
+        // 1. By ID if specified
+        // 2. Or by EmployeeId and Date
+        EmployeeAttendance? attendance = null;
+        if (request.AttendanceId.HasValue && request.AttendanceId.Value > 0)
+        {
+            attendance = await _attendanceRepository.GetByIdAsync(request.AttendanceId.Value, cancellationToken);
+        }
+
+        if (attendance == null)
+        {
+            attendance = await _attendanceRepository.GetTodayAttendanceAsync(request.EmployeeId, request.Date, cancellationToken);
+        }
+
+        if (attendance != null)
+        {
+            // Edit existing attendance record
+            if (inDateTime.HasValue) attendance.InTime = inDateTime;
+            if (outDateTime.HasValue) attendance.OutTime = outDateTime;
+            if (dayTotal.HasValue) attendance.DayTotal = dayTotal;
+            attendance.Status = statusInt;
+
+            if (request.LocationId.HasValue && request.LocationId.Value > 0)
+            {
+                attendance.LocationId = request.LocationId.Value;
+            }
+
+            if (request.ShiftId.HasValue && request.ShiftId.Value > 0)
+            {
+                attendance.ShiftId = request.ShiftId.Value;
+            }
+
+            var remarkSuffix = !string.IsNullOrWhiteSpace(request.Remark) ? $" [Admin Adjusted: {request.Remark.Trim()}]" : " [Admin Adjusted]";
+            attendance.Remark = string.IsNullOrEmpty(attendance.Remark) ? remarkSuffix.Trim() : $"{attendance.Remark} {remarkSuffix}".Trim();
+            attendance.ApprovedByClientId = adminUserId;
+
+            await _attendanceRepository.UpdateAsync(attendance, cancellationToken);
+            _logger.LogInformation("Admin {AdminId} edited attendance {AttendanceId} for employee {EmployeeId} on {Date}", adminUserId, attendance.Id, request.EmployeeId, request.Date);
+
+            return await MapToDtoAsync(attendance.Id, cancellationToken);
+        }
+        else
+        {
+            // Mark new previous attendance record
+            var shiftId = request.ShiftId ?? employee.ProfessionalDetails?.ShiftId;
+            var shift = shiftId.HasValue
+                ? await _context.Shifts.FirstOrDefaultAsync(s => s.Id == shiftId.Value, cancellationToken)
+                : await _context.Shifts.FirstOrDefaultAsync(s => s.OrganizationId == employee.OrganizationId, cancellationToken);
+
+            if (shift == null)
+            {
+                return ApiResponseDto<AttendanceDto>.Fail("No shift configuration found for employee or organization.");
+            }
+
+            var academicYear = await _context.AcademicYears
+                .Where(a => a.OrganizationId == employee.OrganizationId && a.IsActive)
+                .OrderByDescending(a => a.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (academicYear == null)
+            {
+                academicYear = await _context.AcademicYears
+                    .Where(a => a.OrganizationId == employee.OrganizationId)
+                    .OrderByDescending(a => a.Id)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (academicYear == null)
+                {
+                    return ApiResponseDto<AttendanceDto>.Fail("No academic year configured for organization.");
+                }
+            }
+
+            var targetLocationId = request.LocationId ?? employee.ProfessionalDetails?.LocationId ?? shift.LocationId;
+
+            if (!inDateTime.HasValue && (statusInt == (int)AttendanceStatus.Present || statusInt == (int)AttendanceStatus.Late))
+            {
+                inDateTime = new DateTimeOffset(request.Date.ToDateTime(shift.InTime), TimeSpan.Zero);
+            }
+
+            if (!outDateTime.HasValue && inDateTime.HasValue && (statusInt == (int)AttendanceStatus.Present || statusInt == (int)AttendanceStatus.Late))
+            {
+                outDateTime = new DateTimeOffset(request.Date.ToDateTime(shift.OutTime), TimeSpan.Zero);
+                if (inDateTime.HasValue)
+                {
+                    dayTotal = Math.Round((decimal)Math.Max(0, (outDateTime.Value - inDateTime.Value).TotalHours), 2);
+                }
+            }
+
+            var newAttendance = new EmployeeAttendance
+            {
+                OrganizationId = employee.OrganizationId,
+                EmployeeId = request.EmployeeId,
+                LocationId = targetLocationId,
+                ShiftId = shift.Id,
+                AcademicYearId = academicYear.Id,
+                InTime = inDateTime,
+                OutTime = outDateTime,
+                DayTotal = dayTotal,
+                Status = statusInt,
+                Remark = !string.IsNullOrWhiteSpace(request.Remark) ? $"[Admin Marked: {request.Remark.Trim()}]" : "[Admin Marked]",
+                PunchCount = outDateTime.HasValue ? 2 : 1,
+                ApprovedByClientId = adminUserId
+            };
+
+            await _attendanceRepository.AddAsync(newAttendance, cancellationToken);
+            _logger.LogInformation("Admin {AdminId} marked new past attendance {AttendanceId} for employee {EmployeeId} on {Date}", adminUserId, newAttendance.Id, request.EmployeeId, request.Date);
+
+            return await MapToDtoAsync(newAttendance.Id, cancellationToken);
+        }
     }
 
     private async Task<ApiResponseDto<AttendanceDto>> MapToDtoAsync(int attendanceId, CancellationToken cancellationToken)

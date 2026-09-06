@@ -43,6 +43,8 @@ public class AttendanceDto
 public class AttendanceHistoryDto
 {
     public int Id { get; set; }
+    public int EmployeeId { get; set; }
+    public string EmployeeName { get; set; } = string.Empty;
     public DateOnly Date { get; set; }
     public DateTimeOffset? InTime { get; set; }
     public DateTimeOffset? OutTime { get; set; }
@@ -51,4 +53,17 @@ public class AttendanceHistoryDto
     public string ShiftName { get; set; } = string.Empty;
     public string LocationName { get; set; } = string.Empty;
     public string? Remark { get; set; }
+}
+
+public class AdminMarkAttendanceRequestDto
+{
+    public int? AttendanceId { get; set; }
+    public int EmployeeId { get; set; }
+    public DateOnly Date { get; set; }
+    public TimeOnly? InTime { get; set; }
+    public TimeOnly? OutTime { get; set; }
+    public string Status { get; set; } = "Present"; // Present, Late, HalfDay, Absent, OnLeave
+    public int? LocationId { get; set; }
+    public int? ShiftId { get; set; }
+    public string Remark { get; set; } = string.Empty;
 }

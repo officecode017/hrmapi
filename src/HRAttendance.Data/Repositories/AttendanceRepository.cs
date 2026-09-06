@@ -45,6 +45,7 @@ public class AttendanceRepository : IAttendanceRepository
             .Where(a => a.EmployeeId == employeeId && a.InTime >= startRange && a.InTime <= endRange)
             .Include(a => a.Shift)
             .Include(a => a.Location)
+            .Include(a => a.Employee)
             .OrderByDescending(a => a.InTime)
             .ToListAsync(cancellationToken);
     }
