@@ -20,6 +20,7 @@ public static class DbInitializer
         ("Location.Create", "Organization", "Create new campus locations"),
         ("Location.Edit", "Organization", "Edit campus locations"),
         ("Location.Delete", "Organization", "Delete or deactivate campus locations"),
+        ("Location.CaptureGPS", "Organization", "Capture device GPS to automatically populate campus coordinates"),
         ("Department.View", "Organization", "View organizational departmental units"),
         ("Department.Manage", "Organization", "Create, update, and delete departments and head assignments"),
         ("Department.Create", "Organization", "Create new departmental units"),
