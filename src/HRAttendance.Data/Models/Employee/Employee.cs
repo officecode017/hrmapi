@@ -5,6 +5,7 @@ using HRAttendance.Data.Models.Attendance;
 using HRAttendance.Data.Models.Leave;
 using HRAttendance.Data.Models.Overtime;
 using HRAttendance.Data.Models.Notification;
+using HRAttendance.Data.Models.Payroll;
 
 namespace HRAttendance.Data.Models.Employee;
 
@@ -15,6 +16,8 @@ public class Employee : AuditableEntity
     public string? FirstName { get; set; }
     public string? MiddleName { get; set; }
     public string? LastName { get; set; }
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
+    public string FullName => $"{FirstName} {LastName}".Trim();
     public string? FatherName { get; set; }
     public string? MotherName { get; set; }
     public DateOnly? DOB { get; set; }
@@ -61,4 +64,9 @@ public class Employee : AuditableEntity
     public virtual ICollection<Models.Notification.Notification> SubjectOfNotifications { get; set; } = new List<Models.Notification.Notification>();
     public virtual ICollection<EmployeeProfessionalDetails> DirectReports { get; set; } = new List<EmployeeProfessionalDetails>();
     public virtual ICollection<Department> HeadedDepartments { get; set; } = new List<Department>();
+    public virtual ICollection<EmployeeSalaryStructure> SalaryStructures { get; set; } = new List<EmployeeSalaryStructure>();
+    public virtual ICollection<PayrollEmployee> PayrollSnapshots { get; set; } = new List<PayrollEmployee>();
+    public virtual ICollection<PayrollAdjustment> PayrollAdjustments { get; set; } = new List<PayrollAdjustment>();
+    public virtual ICollection<PayrollArrear> PayrollArrears { get; set; } = new List<PayrollArrear>();
+    public virtual ICollection<Payslip> Payslips { get; set; } = new List<Payslip>();
 }

@@ -8,6 +8,7 @@ using HRAttendance.Data.Models.Attendance;
 using HRAttendance.Data.Models.Leave;
 using HRAttendance.Data.Models.Overtime;
 using HRAttendance.Data.Models.Notification;
+using HRAttendance.Data.Models.Payroll;
 
 namespace HRAttendance.Data;
 
@@ -55,6 +56,26 @@ public class ApplicationDbContext : DbContext
 
     // Notifications
     public DbSet<Models.Notification.Notification> Notifications => Set<Models.Notification.Notification>();
+
+    // Payroll
+    public DbSet<FinancialYear> FinancialYears => Set<FinancialYear>();
+    public DbSet<PayrollPolicy> PayrollPolicies => Set<PayrollPolicy>();
+    public DbSet<StatutoryRule> StatutoryRules => Set<StatutoryRule>();
+    public DbSet<SalaryComponent> SalaryComponents => Set<SalaryComponent>();
+    public DbSet<EmployeeSalaryStructure> EmployeeSalaryStructures => Set<EmployeeSalaryStructure>();
+    public DbSet<EmployeeSalaryStructureItem> EmployeeSalaryStructureItems => Set<EmployeeSalaryStructureItem>();
+    public DbSet<PayrollPeriod> PayrollPeriods => Set<PayrollPeriod>();
+    public DbSet<PayrollEmployee> PayrollEmployees => Set<PayrollEmployee>();
+    public DbSet<PayrollSalarySlice> PayrollSalarySlices => Set<PayrollSalarySlice>();
+    public DbSet<PayrollItem> PayrollItems => Set<PayrollItem>();
+    public DbSet<PayrollAdjustment> PayrollAdjustments => Set<PayrollAdjustment>();
+    public DbSet<PayrollArrear> PayrollArrears => Set<PayrollArrear>();
+    public DbSet<PayrollException> PayrollExceptions => Set<PayrollException>();
+    public DbSet<Payslip> Payslips => Set<Payslip>();
+    public DbSet<PayslipItem> PayslipItems => Set<PayslipItem>();
+    public DbSet<PayslipAccessLog> PayslipAccessLogs => Set<PayslipAccessLog>();
+    public DbSet<PayrollPayment> PayrollPayments => Set<PayrollPayment>();
+    public DbSet<BankExportBatch> BankExportBatches => Set<BankExportBatch>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -34,8 +34,20 @@ public class OrganizationController : ControllerBase
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ApiResponseDto<OrganizationDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetById(int id, CancellationToken cancellationToken)
     {
+        var isPrivileged = User.IsInRole(ApplicationRoles.SuperAdmin)
+                        || User.IsInRole(ApplicationRoles.Admin)
+                        || User.IsInRole(ApplicationRoles.Manager)
+                        || User.HasClaim("Permission", "*")
+                        || User.HasClaim("Permission", "Organization.View");
+
+        if (!isPrivileged)
+        {
+            return Forbid();
+        }
+
         var result = await _organizationService.GetOrganizationByIdAsync(id, cancellationToken);
         if (!result.Success) return NotFound(result);
         return Ok(result);
@@ -68,8 +80,20 @@ public class OrganizationController : ControllerBase
     [HttpPut("{id:int}")]
     [ProducesResponseType(typeof(ApiResponseDto<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> Update(int id, [FromBody] UpdateOrganizationDto request, CancellationToken cancellationToken)
     {
+        var isPrivileged = User.IsInRole(ApplicationRoles.SuperAdmin)
+                        || User.IsInRole(ApplicationRoles.Admin)
+                        || User.HasClaim("Permission", "*")
+                        || User.HasClaim("Permission", "Organization.Manage")
+                        || User.HasClaim("Permission", "Organization.Update");
+
+        if (!isPrivileged)
+        {
+            return Forbid();
+        }
+
         var result = await _organizationService.UpdateOrganizationAsync(id, request, cancellationToken);
         if (!result.Success) return BadRequest(result);
         return Ok(result);

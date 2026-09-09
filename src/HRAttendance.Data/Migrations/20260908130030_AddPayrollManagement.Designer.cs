@@ -4,6 +4,7 @@ using HRAttendance.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace HRAttendance.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260908130030_AddPayrollManagement")]
+    partial class AddPayrollManagement
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1516,72 +1519,6 @@ namespace HRAttendance.Data.Migrations
                     b.ToTable("OTSettings", (string)null);
                 });
 
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.BankExportBatch", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("BatchNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTimeOffset>("ExportedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("ExportedBy")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Format")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PayrollPeriodId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("StoragePath")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<decimal>("TotalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("TotalRecords")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationId");
-
-                    b.HasIndex("PayrollPeriodId");
-
-                    b.ToTable("BankExportBatches", (string)null);
-                });
-
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructure", b =>
                 {
                     b.Property<int>("Id")
@@ -1609,10 +1546,10 @@ namespace HRAttendance.Data.Migrations
                     b.Property<int>("EmployeeId")
                         .HasColumnType("int");
 
-                    b.Property<bool>("IsActive")
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
-                    b.Property<bool>("IsDeleted")
+                    b.Property<bool>("IsLocked")
                         .HasColumnType("bit");
 
                     b.Property<DateTime?>("ModifiedAt")
@@ -1629,17 +1566,20 @@ namespace HRAttendance.Data.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("RevisionReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.Property<int>("Version")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OrganizationId");
+                    b.HasIndex("EmployeeId", "EffectiveFrom");
 
-                    b.HasIndex("EmployeeId", "Version")
+                    b.HasIndex("OrganizationId", "EmployeeId", "Version")
                         .IsUnique();
 
                     b.ToTable("EmployeeSalaryStructures", (string)null);
@@ -1656,6 +1596,9 @@ namespace HRAttendance.Data.Migrations
                     b.Property<decimal>("AnnualAmount")
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("CalculationBase")
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -1679,12 +1622,12 @@ namespace HRAttendance.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<decimal>("PercentageRate")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<int>("SalaryComponentId")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("Value")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 
@@ -1693,580 +1636,6 @@ namespace HRAttendance.Data.Migrations
                     b.HasIndex("SalaryComponentId");
 
                     b.ToTable("EmployeeSalaryStructureItems", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.FinancialYear", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateOnly>("EndDate")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateOnly>("StartDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("YearCode")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationId", "YearCode")
-                        .IsUnique();
-
-                    b.ToTable("FinancialYears", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollAdjustment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AdjustmentNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTimeOffset?>("ApprovedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int?>("ApprovedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Direction")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PayrollPeriodId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTimeOffset?>("RejectedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int?>("RejectedBy")
-                        .HasColumnType("int");
-
-                    b.Property<string>("RejectionReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId");
-
-                    b.HasIndex("PayrollPeriodId");
-
-                    b.HasIndex("OrganizationId", "AdjustmentNumber")
-                        .IsUnique();
-
-                    b.ToTable("PayrollAdjustments", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollArrear", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ArrearNumber")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ComponentCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<decimal>("CorrectAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("DifferenceAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("OriginalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("SourcePayrollPeriodId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<int>("TargetPayrollPeriodId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId");
-
-                    b.HasIndex("TargetPayrollPeriodId");
-
-                    b.HasIndex("OrganizationId", "ArrearNumber")
-                        .IsUnique();
-
-                    b.ToTable("PayrollArrears", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollEmployee", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("AdjustmentsTotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("ApprovedOvertimeHours")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("ArrearsTotal")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("BaseMonthlyGross")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTimeOffset>("CalculatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("CalculationVersion")
-                        .HasColumnType("int");
-
-                    b.Property<int>("CalendarDaysInMonth")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EligibleEmploymentDays")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("EmployerContributions")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("GrossEarnings")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("HalfDays")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<decimal>("LOPDays")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("LOPDeduction")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("NetPay")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("OtherDeductions")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("OvertimePay")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("PaidLeaveDays")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("PayrollPeriodId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("PresentDays")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("ProratedGross")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("StatutoryDeductions")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("TotalDeductions")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<decimal>("WorkingDays")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId");
-
-                    b.HasIndex("PayrollPeriodId");
-
-                    b.HasIndex("OrganizationId", "PayrollPeriodId", "EmployeeId")
-                        .IsUnique();
-
-                    b.ToTable("PayrollEmployees", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollException", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ErrorCode")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsResolved")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PayrollPeriodId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ResolutionNotes")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<DateTimeOffset?>("ResolvedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int?>("ResolvedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Severity")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("EmployeeId");
-
-                    b.HasIndex("PayrollPeriodId");
-
-                    b.ToTable("PayrollExceptions", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollItem", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("CalculationBase")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("CalculationFormula")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("CalculationNotes")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<int>("CalculationOrder")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("CalculationRate")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("CalculationType")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ComponentCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("ComponentName")
-                        .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
-
-                    b.Property<int>("ComponentType")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("FinalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("OriginalAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("PayrollEmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("ProratedAmount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PayrollEmployeeId");
-
-                    b.ToTable("PayrollItems", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollPayment", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<string>("BankName")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<string>("FailureReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("IFSCCode")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
-
-                    b.Property<string>("IdempotencyKey")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<DateTimeOffset?>("InitiatedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("MaskedAccountNumber")
-                        .HasMaxLength(30)
-                        .HasColumnType("nvarchar(30)");
-
-                    b.Property<int>("Method")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTimeOffset?>("PaidAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("PaymentAttemptNumber")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PayrollEmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTimeOffset?>("ProcessedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<DateTimeOffset?>("ReversedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<string>("TransactionReference")
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PayrollEmployeeId");
-
-                    b.HasIndex("OrganizationId", "IdempotencyKey")
-                        .IsUnique();
-
-                    b.ToTable("PayrollPayments", (string)null);
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollPeriod", b =>
@@ -2283,34 +1652,17 @@ namespace HRAttendance.Data.Migrations
                     b.Property<int?>("ApprovedBy")
                         .HasColumnType("int");
 
-                    b.Property<DateTimeOffset?>("CalculatedAt")
-                        .HasColumnType("datetimeoffset");
-
                     b.Property<DateTime?>("CreatedAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<string>("Description")
-                        .IsRequired()
-                        .HasMaxLength(250)
-                        .HasColumnType("nvarchar(250)");
-
                     b.Property<DateOnly>("EndDate")
                         .HasColumnType("date");
 
-                    b.Property<int>("FinancialYearId")
-                        .HasColumnType("int");
-
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
-
-                    b.Property<DateTimeOffset?>("LockedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int?>("LockedBy")
-                        .HasColumnType("int");
 
                     b.Property<DateTime?>("ModifiedAt")
                         .HasColumnType("datetime2");
@@ -2324,21 +1676,12 @@ namespace HRAttendance.Data.Migrations
                     b.Property<int>("OrganizationId")
                         .HasColumnType("int");
 
-                    b.Property<string>("PolicySnapshotJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                    b.Property<DateTimeOffset?>("ProcessedAt")
+                        .HasColumnType("datetimeoffset");
 
-                    b.Property<byte[]>("RowVersion")
-                        .IsConcurrencyToken()
-                        .IsRequired()
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("rowversion");
-
-                    b.Property<int>("RunType")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SequenceNumber")
-                        .HasColumnType("int");
+                    b.Property<string>("Remarks")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<DateOnly>("StartDate")
                         .HasColumnType("date");
@@ -2350,14 +1693,7 @@ namespace HRAttendance.Data.Migrations
                         .HasPrecision(18, 2)
                         .HasColumnType("decimal(18,2)");
 
-                    b.Property<int>("TotalEmployeesProcessed")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("TotalEmployerContributions")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("TotalExceptionsCount")
+                    b.Property<int>("TotalEmployees")
                         .HasColumnType("int");
 
                     b.Property<decimal>("TotalGrossPay")
@@ -2373,145 +1709,10 @@ namespace HRAttendance.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("FinancialYearId");
-
-                    b.HasIndex("OrganizationId", "Year", "Month", "RunType", "SequenceNumber")
+                    b.HasIndex("OrganizationId", "Month", "Year")
                         .IsUnique();
 
                     b.ToTable("PayrollPeriods", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollPolicy", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<bool>("ConsiderHolidaysInLOP")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("ConsiderWeekendsInLOP")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("FixedLOPDays")
-                        .HasColumnType("int");
-
-                    b.Property<int>("FixedProrationDays")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("LOPBasis")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OTBasis")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("OTMultiplier")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ProrationBasis")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RoundingRule")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("StandardMonthlyWorkingHours")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationId")
-                        .IsUnique();
-
-                    b.ToTable("PayrollPolicies", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollSalarySlice", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("EligibleDaysInSlice")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("MonthlyGrossInSlice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("PayrollEmployeeId")
-                        .HasColumnType("int");
-
-                    b.Property<decimal>("ProratedGrossInSlice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
-
-                    b.Property<int>("SalaryStructureId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SalaryStructureVersion")
-                        .HasColumnType("int");
-
-                    b.Property<DateOnly>("SliceEndDate")
-                        .HasColumnType("date");
-
-                    b.Property<string>("SliceNotes")
-                        .IsRequired()
-                        .HasMaxLength(250)
-                        .HasColumnType("nvarchar(250)");
-
-                    b.Property<DateOnly>("SliceStartDate")
-                        .HasColumnType("date");
-
-                    b.Property<int>("TotalCalendarDaysInSlice")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SalaryStructureId");
-
-                    b.HasIndex("PayrollEmployeeId", "SliceStartDate", "SliceEndDate")
-                        .IsUnique();
-
-                    b.ToTable("PayrollSalarySlices", (string)null);
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.Payslip", b =>
@@ -2528,18 +1729,29 @@ namespace HRAttendance.Data.Migrations
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
-                    b.Property<string>("DocumentHash")
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
-
                     b.Property<int>("EmployeeId")
                         .HasColumnType("int");
 
-                    b.Property<DateTimeOffset>("GeneratedAt")
-                        .HasColumnType("datetimeoffset");
+                    b.Property<decimal>("GrossEarnings")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<bool>("HasMidMonthRevision")
+                        .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("IsPaid")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LossOfPayDays")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("LossOfPayDeduction")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<DateTime?>("ModifiedAt")
                         .HasColumnType("datetime2");
@@ -2547,81 +1759,76 @@ namespace HRAttendance.Data.Migrations
                     b.Property<int?>("ModifiedBy")
                         .HasColumnType("int");
 
-                    b.Property<int>("PayrollEmployeeId")
+                    b.Property<decimal>("NetSalary")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OffDaysAndHolidays")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("OrganizationId")
                         .HasColumnType("int");
 
-                    b.Property<string>("PayslipNumber")
-                        .IsRequired()
+                    b.Property<decimal>("OvertimeHours")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("OvertimePay")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("datetimeoffset");
+
+                    b.Property<decimal>("PaidLeaveDays")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("PaymentMethod")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
-                    b.Property<int>("Status")
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("PayrollPeriodId")
                         .HasColumnType("int");
 
-                    b.Property<string>("StoragePath")
+                    b.Property<decimal>("PresentDays")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("Reimbursements")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Remarks")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("TotalCalendarDays")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TotalDeductions")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("TotalWorkingDays")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("EmployeeId");
 
-                    b.HasIndex("PayrollEmployeeId")
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("PayrollPeriodId", "EmployeeId")
                         .IsUnique();
 
                     b.ToTable("Payslips", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayslipAccessLog", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTimeOffset>("AccessedAt")
-                        .HasColumnType("datetimeoffset");
-
-                    b.Property<int>("AccessedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("ActionType")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<string>("IpAddress")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("PayslipId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("UserAgent")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("PayslipId");
-
-                    b.ToTable("PayslipAccessLogs", (string)null);
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayslipItem", b =>
@@ -2632,9 +1839,9 @@ namespace HRAttendance.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<decimal>("Amount")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                    b.Property<string>("CalculationNotes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("ComponentCode")
                         .IsRequired()
@@ -2643,8 +1850,8 @@ namespace HRAttendance.Data.Migrations
 
                     b.Property<string>("ComponentName")
                         .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("ComponentType")
                         .HasColumnType("int");
@@ -2653,9 +1860,6 @@ namespace HRAttendance.Data.Migrations
                         .HasColumnType("datetime2");
 
                     b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("DisplayOrder")
                         .HasColumnType("int");
 
                     b.Property<bool>("IsDeleted")
@@ -2667,14 +1871,97 @@ namespace HRAttendance.Data.Migrations
                     b.Property<int?>("ModifiedBy")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("OriginalMonthlyAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int>("PayslipId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ProratedAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int?>("SalaryComponentId")
                         .HasColumnType("int");
 
                     b.HasKey("Id");
 
                     b.HasIndex("PayslipId");
 
+                    b.HasIndex("SalaryComponentId");
+
                     b.ToTable("PayslipItems", (string)null);
+                });
+
+            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayslipSubPeriod", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("CreatedBy")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DaysInSlice")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EmployeeSalaryStructureId")
+                        .HasColumnType("int");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("LossOfPayDaysInSlice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ModifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("ModifiedBy")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("PayableDaysInSlice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<int>("PayslipId")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("ProratedDeductions")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ProratedGross")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("ProratedNet")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("StructureVersion")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EmployeeSalaryStructureId");
+
+                    b.HasIndex("PayslipId");
+
+                    b.ToTable("PayslipSubPeriods", (string)null);
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.SalaryComponent", b =>
@@ -2685,10 +1972,10 @@ namespace HRAttendance.Data.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
-                    b.Property<int>("CalculationOrder")
-                        .HasColumnType("int");
+                    b.Property<bool>("AffectsNetPay")
+                        .HasColumnType("bit");
 
-                    b.Property<int>("CalculationType")
+                    b.Property<int>("CalculationBase")
                         .HasColumnType("int");
 
                     b.Property<string>("Code")
@@ -2702,10 +1989,24 @@ namespace HRAttendance.Data.Migrations
                     b.Property<int?>("CreatedBy")
                         .HasColumnType("int");
 
+                    b.Property<decimal>("DefaultValue")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(250)
+                        .HasColumnType("nvarchar(250)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPartOfCTC")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsProrated")
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsStatutory")
@@ -2722,8 +2023,8 @@ namespace HRAttendance.Data.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(150)
-                        .HasColumnType("nvarchar(150)");
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
 
                     b.Property<int>("OrganizationId")
                         .HasColumnType("int");
@@ -2737,59 +2038,6 @@ namespace HRAttendance.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("SalaryComponents", (string)null);
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.StatutoryRule", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("ConfigurationJson")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("CreatedBy")
-                        .HasColumnType("int");
-
-                    b.Property<DateOnly>("EffectiveFrom")
-                        .HasColumnType("date");
-
-                    b.Property<DateOnly?>("EffectiveTo")
-                        .HasColumnType("date");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("ModifiedBy")
-                        .HasColumnType("int");
-
-                    b.Property<int>("OrganizationId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("RuleType")
-                        .HasColumnType("int");
-
-                    b.Property<int>("Version")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("OrganizationId", "RuleType", "Version")
-                        .IsUnique();
-
-                    b.ToTable("StatutoryRules", (string)null);
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Security.EmployeeRole", b =>
@@ -3424,25 +2672,6 @@ namespace HRAttendance.Data.Migrations
                     b.Navigation("Organization");
                 });
 
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.BankExportBatch", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollPeriod", "PayrollPeriod")
-                        .WithMany("BankExports")
-                        .HasForeignKey("PayrollPeriodId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Organization");
-
-                    b.Navigation("PayrollPeriod");
-                });
-
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructure", b =>
                 {
                     b.HasOne("HRAttendance.Data.Models.Employee.Employee", "Employee")
@@ -3464,185 +2693,25 @@ namespace HRAttendance.Data.Migrations
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructureItem", b =>
                 {
-                    b.HasOne("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructure", "Structure")
+                    b.HasOne("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructure", "EmployeeSalaryStructure")
                         .WithMany("Items")
                         .HasForeignKey("EmployeeSalaryStructureId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("HRAttendance.Data.Models.Payroll.SalaryComponent", "Component")
-                        .WithMany("StructureItems")
+                    b.HasOne("HRAttendance.Data.Models.Payroll.SalaryComponent", "SalaryComponent")
+                        .WithMany()
                         .HasForeignKey("SalaryComponentId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("Component");
+                    b.Navigation("EmployeeSalaryStructure");
 
-                    b.Navigation("Structure");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.FinancialYear", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollAdjustment", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Employee.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollPeriod", "PayrollPeriod")
-                        .WithMany("Adjustments")
-                        .HasForeignKey("PayrollPeriodId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-
-                    b.Navigation("Organization");
-
-                    b.Navigation("PayrollPeriod");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollArrear", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Employee.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollPeriod", "TargetPayrollPeriod")
-                        .WithMany("ArrearsTargetingPeriod")
-                        .HasForeignKey("TargetPayrollPeriodId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-
-                    b.Navigation("Organization");
-
-                    b.Navigation("TargetPayrollPeriod");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollEmployee", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Employee.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollPeriod", "Period")
-                        .WithMany("Employees")
-                        .HasForeignKey("PayrollPeriodId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-
-                    b.Navigation("Organization");
-
-                    b.Navigation("Period");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollException", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Employee.Employee", "Employee")
-                        .WithMany()
-                        .HasForeignKey("EmployeeId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollPeriod", "PayrollPeriod")
-                        .WithMany("Exceptions")
-                        .HasForeignKey("PayrollPeriodId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Employee");
-
-                    b.Navigation("PayrollPeriod");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollItem", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollEmployee", "PayrollEmployee")
-                        .WithMany("Items")
-                        .HasForeignKey("PayrollEmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("PayrollEmployee");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollPayment", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollEmployee", "PayrollEmployee")
-                        .WithMany("Payments")
-                        .HasForeignKey("PayrollEmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Organization");
-
-                    b.Navigation("PayrollEmployee");
+                    b.Navigation("SalaryComponent");
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollPeriod", b =>
                 {
-                    b.HasOne("HRAttendance.Data.Models.Payroll.FinancialYear", "FinancialYear")
-                        .WithMany("PayrollPeriods")
-                        .HasForeignKey("FinancialYearId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("FinancialYear");
-
-                    b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollPolicy", b =>
-                {
                     b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
                         .WithMany()
                         .HasForeignKey("OrganizationId")
@@ -3650,25 +2719,6 @@ namespace HRAttendance.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollSalarySlice", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollEmployee", "PayrollEmployee")
-                        .WithMany("Slices")
-                        .HasForeignKey("PayrollEmployeeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructure", "SalaryStructure")
-                        .WithMany("SalarySlices")
-                        .HasForeignKey("SalaryStructureId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("PayrollEmployee");
-
-                    b.Navigation("SalaryStructure");
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.Payslip", b =>
@@ -3679,26 +2729,23 @@ namespace HRAttendance.Data.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollEmployee", "PayrollEmployee")
-                        .WithOne("Payslip")
-                        .HasForeignKey("HRAttendance.Data.Models.Payroll.Payslip", "PayrollEmployeeId")
+                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HRAttendance.Data.Models.Payroll.PayrollPeriod", "PayrollPeriod")
+                        .WithMany("Payslips")
+                        .HasForeignKey("PayrollPeriodId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("Employee");
 
-                    b.Navigation("PayrollEmployee");
-                });
+                    b.Navigation("Organization");
 
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayslipAccessLog", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Payroll.Payslip", "Payslip")
-                        .WithMany("AccessLogs")
-                        .HasForeignKey("PayslipId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Payslip");
+                    b.Navigation("PayrollPeriod");
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayslipItem", b =>
@@ -3709,21 +2756,36 @@ namespace HRAttendance.Data.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("HRAttendance.Data.Models.Payroll.SalaryComponent", "SalaryComponent")
+                        .WithMany()
+                        .HasForeignKey("SalaryComponentId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Payslip");
+
+                    b.Navigation("SalaryComponent");
+                });
+
+            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayslipSubPeriod", b =>
+                {
+                    b.HasOne("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructure", "EmployeeSalaryStructure")
+                        .WithMany()
+                        .HasForeignKey("EmployeeSalaryStructureId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("HRAttendance.Data.Models.Payroll.Payslip", "Payslip")
+                        .WithMany("SubPeriods")
+                        .HasForeignKey("PayslipId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("EmployeeSalaryStructure");
+
                     b.Navigation("Payslip");
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.SalaryComponent", b =>
-                {
-                    b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
-                        .WithMany()
-                        .HasForeignKey("OrganizationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Organization");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.StatutoryRule", b =>
                 {
                     b.HasOne("HRAttendance.Data.Models.Organization.Organization", "Organization")
                         .WithMany()
@@ -3931,49 +2993,18 @@ namespace HRAttendance.Data.Migrations
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.EmployeeSalaryStructure", b =>
                 {
                     b.Navigation("Items");
-
-                    b.Navigation("SalarySlices");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.FinancialYear", b =>
-                {
-                    b.Navigation("PayrollPeriods");
-                });
-
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollEmployee", b =>
-                {
-                    b.Navigation("Items");
-
-                    b.Navigation("Payments");
-
-                    b.Navigation("Payslip");
-
-                    b.Navigation("Slices");
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.PayrollPeriod", b =>
                 {
-                    b.Navigation("Adjustments");
-
-                    b.Navigation("ArrearsTargetingPeriod");
-
-                    b.Navigation("BankExports");
-
-                    b.Navigation("Employees");
-
-                    b.Navigation("Exceptions");
+                    b.Navigation("Payslips");
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Payroll.Payslip", b =>
                 {
-                    b.Navigation("AccessLogs");
-
                     b.Navigation("Items");
-                });
 
-            modelBuilder.Entity("HRAttendance.Data.Models.Payroll.SalaryComponent", b =>
-                {
-                    b.Navigation("StructureItems");
+                    b.Navigation("SubPeriods");
                 });
 
             modelBuilder.Entity("HRAttendance.Data.Models.Security.PermissionMaster", b =>
