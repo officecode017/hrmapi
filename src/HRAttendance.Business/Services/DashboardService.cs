@@ -368,6 +368,10 @@ public class DashboardService : IDashboardService
                 {
                     calendarDay.Remarks = "Worked on Weekly Off";
                 }
+                else if (!dayPunch.OutTime.HasValue)
+                {
+                    calendarDay.Remarks = "Missing Punch Out";
+                }
                 else if (!string.IsNullOrEmpty(dayPunch.Remark))
                 {
                     calendarDay.Remarks = dayPunch.Remark;
