@@ -42,6 +42,8 @@ public class ApplicationDbContext : DbContext
 
     // Attendance
     public DbSet<EmployeeAttendance> EmployeeAttendances => Set<EmployeeAttendance>();
+    public DbSet<AttendanceRegularizationRequest> AttendanceRegularizationRequests
+        => Set<AttendanceRegularizationRequest>();
 
     // Leave
     public DbSet<LeaveType> LeaveTypes => Set<LeaveType>();
