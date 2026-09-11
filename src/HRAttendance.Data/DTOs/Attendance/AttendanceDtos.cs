@@ -67,3 +67,25 @@ public class AdminMarkAttendanceRequestDto
     public int? ShiftId { get; set; }
     public string Remark { get; set; } = string.Empty;
 }
+
+
+
+public class AttendanceRegularizationRequestDto
+{
+    public int Id { get; set; }
+    public int AttendanceId { get; set; }
+
+    public DateTimeOffset? RequestedInTime { get; set; }
+
+    public DateTimeOffset? RequestedOutTime { get; set; }
+
+    public string? EmployeeRemark { get; set; }
+
+    public string Status { get; set; } = "Pending";
+
+    public DateTimeOffset? ReviewedAt { get; set; }
+
+    public int? ReviewedBy { get; set; }
+
+    public string? AdminRemark { get; set; }
+}

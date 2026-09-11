@@ -372,10 +372,6 @@ public class DashboardService : IDashboardService
                 {
                     calendarDay.Remarks = "Missing Punch Out";
                 }
-                else if (!string.IsNullOrEmpty(dayPunch.Remark))
-                {
-                    calendarDay.Remarks = dayPunch.Remark;
-                }
             }
             else if (dayLeave != null)
             {
