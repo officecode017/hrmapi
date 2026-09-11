@@ -433,6 +433,265 @@ public class AttendanceService : IAttendanceService
         }
     }
 
+    public async Task<ApiResponseDto<AttendanceRegularizationRequestDto>> SubmitRegularizationAsync(
+    AttendanceRegularizationRequestDto request,
+    int employeeId,
+    CancellationToken cancellationToken = default)
+    {
+        var attendance = await _context.EmployeeAttendances
+            .FirstOrDefaultAsync(
+                a => a.Id == request.AttendanceId &&
+                     a.EmployeeId == employeeId,
+                cancellationToken);
+
+        if (attendance == null)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Attendance record not found.");
+        }
+
+        if (attendance.OutTime.HasValue)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Attendance already has a punch out.");
+        }
+
+        var pendingRequest = await _context.AttendanceRegularizationRequests
+            .FirstOrDefaultAsync(
+                r => r.AttendanceId == request.AttendanceId &&
+                     r.EmployeeId == employeeId &&
+                     r.Status == "Pending" &&
+                     !r.IsDeleted,
+                cancellationToken);
+
+        if (pendingRequest != null)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("A regularization request is already pending.");
+        }
+
+        if (!request.RequestedInTime.HasValue &&
+            !request.RequestedOutTime.HasValue)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Please provide In Time or Out Time.");
+        }
+
+        if (request.RequestedInTime.HasValue &&
+            request.RequestedOutTime.HasValue &&
+            request.RequestedOutTime <= request.RequestedInTime)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Out Time must be greater than In Time.");
+        }
+
+        var regularization = new AttendanceRegularizationRequest
+        {
+            AttendanceId = attendance.Id,
+            EmployeeId = employeeId,
+            RequestedInTime = request.RequestedInTime,
+            RequestedOutTime = request.RequestedOutTime,
+            EmployeeRemark = request.EmployeeRemark,
+            Status = "Pending",
+            CreatedBy = employeeId,
+            CreatedAt = DateTime.UtcNow,
+            IsDeleted = false
+        };
+
+        await _context.AttendanceRegularizationRequests.AddAsync(
+            regularization,
+            cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        request.Id = regularization.Id;
+        request.Status = regularization.Status;
+
+        return ApiResponseDto<AttendanceRegularizationRequestDto>.Ok(
+            request,
+            "Regularization request submitted successfully.");
+    }
+
+
+    public async Task<ApiResponseDto<List<AttendanceRegularizationRequestDto>>> GetMyRegularizationRequestsAsync(
+    int employeeId,
+    CancellationToken cancellationToken = default)
+    {
+        var requests = await _context.AttendanceRegularizationRequests
+            .Where(r => r.EmployeeId == employeeId && !r.IsDeleted)
+            .OrderByDescending(r => r.CreatedAt)
+            .Select(r => new AttendanceRegularizationRequestDto
+            {
+                Id = r.Id,
+                AttendanceId = r.AttendanceId,
+                RequestedInTime = r.RequestedInTime,
+                RequestedOutTime = r.RequestedOutTime,
+                EmployeeRemark = r.EmployeeRemark,
+                Status = r.Status,
+                ReviewedAt = r.ReviewedAt,
+                ReviewedBy = r.ReviewedBy,
+                AdminRemark = r.AdminRemark
+            })
+            .ToListAsync(cancellationToken);
+
+        return ApiResponseDto<List<AttendanceRegularizationRequestDto>>
+            .Ok(requests);
+    }
+
+    public async Task<ApiResponseDto<List<AttendanceRegularizationRequestDto>>> GetPendingRegularizationRequestsAsync(
+    CancellationToken cancellationToken = default)
+    {
+        var requests = await _context.AttendanceRegularizationRequests
+            .Where(r => r.Status == "Pending" && !r.IsDeleted)
+            .OrderBy(r => r.CreatedAt)
+            .Select(r => new AttendanceRegularizationRequestDto
+            {
+                Id = r.Id,
+                AttendanceId = r.AttendanceId,
+                RequestedInTime = r.RequestedInTime,
+                RequestedOutTime = r.RequestedOutTime,
+                EmployeeRemark = r.EmployeeRemark,
+                Status = r.Status,
+                ReviewedAt = r.ReviewedAt,
+                ReviewedBy = r.ReviewedBy,
+                AdminRemark = r.AdminRemark
+            })
+            .ToListAsync(cancellationToken);
+
+        return ApiResponseDto<List<AttendanceRegularizationRequestDto>>
+            .Ok(requests);
+    }
+
+    public async Task<ApiResponseDto<AttendanceRegularizationRequestDto>> ApproveRegularizationAsync(
+    int requestId,
+    int adminUserId,
+    CancellationToken cancellationToken = default)
+    {
+        var request = await _context.AttendanceRegularizationRequests
+            .FirstOrDefaultAsync(
+                r => r.Id == requestId && !r.IsDeleted,
+                cancellationToken);
+
+        if (request == null)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Regularization request not found.");
+        }
+
+        if (request.Status != "Pending")
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Only pending requests can be approved.");
+        }
+
+        var attendance = await _context.EmployeeAttendances
+            .FirstOrDefaultAsync(
+                a => a.Id == request.AttendanceId,
+                cancellationToken);
+
+        if (attendance == null)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Attendance record not found.");
+        }
+
+        if (request.RequestedInTime.HasValue)
+            attendance.InTime = request.RequestedInTime;
+
+        if (request.RequestedOutTime.HasValue)
+            attendance.OutTime = request.RequestedOutTime;
+
+        if (attendance.InTime.HasValue && attendance.OutTime.HasValue)
+        {
+            var duration = attendance.OutTime.Value - attendance.InTime.Value;
+
+            attendance.DayTotal = Math.Round(
+                (decimal)Math.Max(0, duration.TotalHours), 2);
+        }
+
+        attendance.PunchCount = attendance.OutTime.HasValue ? 2 : 1;
+
+        attendance.Remark = string.IsNullOrWhiteSpace(request.EmployeeRemark)
+            ? "Attendance Regularized"
+            : $"Attendance Regularized: {request.EmployeeRemark.Trim()}";
+
+        attendance.ApprovedByClientId = adminUserId;
+
+        request.Status = "Approved";
+        request.ReviewedAt = DateTimeOffset.UtcNow;
+        request.ReviewedBy = adminUserId;
+        request.AdminRemark = "Approved";
+        request.ModifiedBy = adminUserId;
+        request.ModifiedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return ApiResponseDto<AttendanceRegularizationRequestDto>.Ok(
+            new AttendanceRegularizationRequestDto
+            {
+                Id = request.Id,
+                AttendanceId = request.AttendanceId,
+                RequestedInTime = request.RequestedInTime,
+                RequestedOutTime = request.RequestedOutTime,
+                EmployeeRemark = request.EmployeeRemark,
+                Status = request.Status,
+                ReviewedAt = request.ReviewedAt,
+                ReviewedBy = request.ReviewedBy,
+                AdminRemark = request.AdminRemark
+            },
+            "Regularization approved successfully.");
+    }
+
+    public async Task<ApiResponseDto<AttendanceRegularizationRequestDto>> RejectRegularizationAsync(
+    int requestId,
+    int adminUserId,
+    string adminRemark,
+    CancellationToken cancellationToken = default)
+    {
+        var request = await _context.AttendanceRegularizationRequests
+            .FirstOrDefaultAsync(
+                r => r.Id == requestId && !r.IsDeleted,
+                cancellationToken);
+
+        if (request == null)
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Regularization request not found.");
+        }
+
+        if (request.Status != "Pending")
+        {
+            return ApiResponseDto<AttendanceRegularizationRequestDto>
+                .Fail("Only pending requests can be rejected.");
+        }
+
+        request.Status = "Rejected";
+        request.ReviewedAt = DateTimeOffset.UtcNow;
+        request.ReviewedBy = adminUserId;
+        request.AdminRemark = adminRemark;
+
+        request.ModifiedBy = adminUserId;
+        request.ModifiedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return ApiResponseDto<AttendanceRegularizationRequestDto>.Ok(
+            new AttendanceRegularizationRequestDto
+            {
+                Id = request.Id,
+                AttendanceId = request.AttendanceId,
+                RequestedInTime = request.RequestedInTime,
+                RequestedOutTime = request.RequestedOutTime,
+                EmployeeRemark = request.EmployeeRemark,
+                Status = request.Status,
+                ReviewedAt = request.ReviewedAt,
+                ReviewedBy = request.ReviewedBy,
+                AdminRemark = request.AdminRemark
+            },
+            "Regularization rejected successfully.");
+    }
+
+
     private async Task<ApiResponseDto<AttendanceDto>> MapToDtoAsync(int attendanceId, CancellationToken cancellationToken)
     {
         var a = await _context.EmployeeAttendances

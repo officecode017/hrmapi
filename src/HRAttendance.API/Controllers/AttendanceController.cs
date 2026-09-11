@@ -107,4 +107,108 @@ public class AttendanceController : ControllerBase
         if (!result.Success) return BadRequest(result);
         return Ok(result);
     }
+
+    [HttpPost("regularization")]
+    [ProducesResponseType(typeof(ApiResponseDto<AttendanceRegularizationRequestDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> SubmitRegularization(
+    [FromBody] AttendanceRegularizationRequestDto request,
+    CancellationToken cancellationToken)
+    {
+        var employeeId = User.GetEmployeeId();
+
+        if (employeeId <= 0)
+        {
+            return BadRequest(
+                ApiResponseDto<AttendanceRegularizationRequestDto>
+                    .Fail("Employee ID could not be determined."));
+        }
+
+        var result = await _attendanceService.SubmitRegularizationAsync(
+            request,
+            employeeId,
+            cancellationToken);
+
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
+
+    [HttpGet("regularization/my")]
+    [ProducesResponseType(typeof(ApiResponseDto<List<AttendanceRegularizationRequestDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyRegularizationRequests(
+        CancellationToken cancellationToken)
+    {
+        var employeeId = User.GetEmployeeId();
+
+        var result = await _attendanceService.GetMyRegularizationRequestsAsync(
+            employeeId,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("regularization/pending")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin}")]
+    [ProducesResponseType(typeof(ApiResponseDto<List<AttendanceRegularizationRequestDto>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetPendingRegularizationRequests(
+        CancellationToken cancellationToken)
+    {
+        var result = await _attendanceService.GetPendingRegularizationRequestsAsync(
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpPost("regularization/{requestId:int}/approve")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin}")]
+    [ProducesResponseType(typeof(ApiResponseDto<AttendanceRegularizationRequestDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ApproveRegularization(
+        int requestId,
+        CancellationToken cancellationToken)
+    {
+        var adminUserId = User.GetEmployeeId();
+
+        var result = await _attendanceService.ApproveRegularizationAsync(
+            requestId,
+            adminUserId,
+            cancellationToken);
+
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
+
+    [HttpPost("regularization/{requestId:int}/reject")]
+    [Authorize(Roles = $"{ApplicationRoles.SuperAdmin},{ApplicationRoles.Admin}")]
+    [ProducesResponseType(typeof(ApiResponseDto<AttendanceRegularizationRequestDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> RejectRegularization(
+        int requestId,
+        [FromBody] AttendanceRegularizationRequestDto request,
+        CancellationToken cancellationToken)
+    {
+        var adminUserId = User.GetEmployeeId();
+
+        if (string.IsNullOrWhiteSpace(request.AdminRemark))
+        {
+            return BadRequest(
+                ApiResponseDto<AttendanceRegularizationRequestDto>
+                    .Fail("Rejection remark is required."));
+        }
+
+        var result = await _attendanceService.RejectRegularizationAsync(
+            requestId,
+            adminUserId,
+            request.AdminRemark,
+            cancellationToken);
+
+        if (!result.Success)
+            return BadRequest(result);
+
+        return Ok(result);
+    }
 }
