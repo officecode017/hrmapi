@@ -69,12 +69,25 @@ try
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<HRAttendance.Data.ApplicationDbContext>();
     var passwordHasher = scope.ServiceProvider.GetRequiredService<HRAttendance.Business.Interfaces.IPasswordHasher>();
+    Console.WriteLine(">>> Starting database migration check and seeding...");
     await HRAttendance.Data.DbInitializer.SeedAsync(context, passwordHasher.HashPassword);
+    Console.WriteLine(">>> Database seeding completed successfully.");
 }
 catch (Exception ex)
 {
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
     logger.LogWarning(ex, "Database seeding skipped or encountered an error. Ensure SQL Server is accessible.");
+    Console.WriteLine($">>> Database seeding error: {ex.Message}");
+    if (args.Contains("--seed-only"))
+    {
+        throw;
+    }
+}
+
+if (args.Contains("--seed-only"))
+{
+    Console.WriteLine(">>> --seed-only completed. Exiting.");
+    return;
 }
 
 app.Run();

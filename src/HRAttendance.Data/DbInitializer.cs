@@ -4,6 +4,8 @@ using HRAttendance.Data.Models.Security;
 using HRAttendance.Data.Models.Employee;
 using HRAttendance.Data.Models.Leave;
 using HRAttendance.Data.Models.Overtime;
+using HRAttendance.Data.Models.Payroll;
+using HRAttendance.Data.Models.Attendance;
 
 namespace HRAttendance.Data;
 
@@ -96,7 +98,15 @@ public static class DbInitializer
 
         // Notifications
         ("Notification.View", "Notifications", "View personal system notifications and alerts"),
-        ("Notification.Manage", "Notifications", "Broadcast organizational announcements and notifications")
+        ("Notification.Manage", "Notifications", "Broadcast organizational announcements and notifications"),
+
+        // Payroll & Compensation Masters
+        ("Payroll.View", "Payroll", "View payroll periods, payslips, and salary structures"),
+        ("Payroll.Manage", "Payroll", "Manage salary components, payroll policies, and statutory rules"),
+        ("Payroll.Calculate", "Payroll", "Initiate and recalculate employee payroll batches"),
+        ("Payroll.Approve", "Payroll", "Approve and authorize processed payroll batches"),
+        ("Payroll.Lock", "Payroll", "Lock and freeze finalized payroll periods for disbursement"),
+        ("Payroll.Export", "Payroll", "Generate bank disbursement files and statutory reports")
     };
 
     private static readonly HashSet<string> ManagerPermissionNames = new(StringComparer.OrdinalIgnoreCase)
@@ -108,7 +118,7 @@ public static class DbInitializer
         "Overtime.View", "Overtime.Request", "Overtime.Approve", "Overtime.Reject",
         "Shift.View", "Shift.Assign",
         "Holiday.View", "OffDay.View",
-        "Notification.View"
+        "Notification.View", "Payroll.View"
     };
 
     private static readonly HashSet<string> EmployeePermissionNames = new(StringComparer.OrdinalIgnoreCase)
@@ -119,7 +129,7 @@ public static class DbInitializer
         "Overtime.View", "Overtime.Request",
         "Shift.View",
         "Holiday.View", "OffDay.View",
-        "Notification.View"
+        "Notification.View", "Payroll.View"
     };
 
     public static async Task SeedAsync(ApplicationDbContext context, Func<string, string> passwordHasher)
@@ -135,6 +145,12 @@ public static class DbInitializer
 
         // 2. Master Permissions & Role-Permission Mappings (idempotent: always feeds missing permissions)
         await SeedPermissionsAndRolesAsync(context);
+
+        // 3. Payroll Masters, Financial Years, Salary Components & Structures (idempotent)
+        await SeedPayrollMastersAsync(context);
+
+        // 4. Heal any legacy or uninitialized PayrollPeriod records
+        await HealPayrollPeriodsAsync(context);
     }
 
     public static async Task SeedPermissionsAndRolesAsync(ApplicationDbContext context)
@@ -495,5 +511,291 @@ public static class DbInitializer
         );
 
         await context.SaveChangesAsync();
+    }
+
+    public static async Task SeedPayrollMastersAsync(ApplicationDbContext context)
+    {
+        var organizations = await context.Organizations.ToListAsync();
+        if (!organizations.Any()) return;
+
+        foreach (var org in organizations)
+        {
+            // 1. Ensure Financial Year exists
+            var activeFY = await context.FinancialYears
+                .FirstOrDefaultAsync(fy => fy.OrganizationId == org.Id && fy.YearCode == "FY 2026-27");
+
+            if (activeFY == null)
+            {
+                activeFY = new FinancialYear
+                {
+                    OrganizationId = org.Id,
+                    YearCode = "FY 2026-27",
+                    StartDate = new DateOnly(2026, 4, 1),
+                    EndDate = new DateOnly(2027, 3, 31),
+                    IsActive = true
+                };
+                context.FinancialYears.Add(activeFY);
+                await context.SaveChangesAsync();
+            }
+
+            // 2. Ensure standard Salary Components exist
+            var standardComponents = new (string Code, string Name, ComponentType Type, ComponentCalculationType CalcType, int Order, bool IsTaxable, bool IsStatutory)[]
+            {
+                ("BASIC", "Basic Salary", ComponentType.Earning, ComponentCalculationType.PercentageOfCTC, 1, true, false),
+                ("HRA", "House Rent Allowance", ComponentType.Earning, ComponentCalculationType.PercentageOfBasic, 2, true, false),
+                ("SA", "Special Allowance", ComponentType.Earning, ComponentCalculationType.FixedAmount, 3, true, false),
+                ("CA", "Conveyance Allowance", ComponentType.Earning, ComponentCalculationType.FixedAmount, 4, true, false),
+                ("MA", "Medical Allowance", ComponentType.Earning, ComponentCalculationType.FixedAmount, 5, true, false),
+                ("PF_EE", "Provident Fund (Employee)", ComponentType.Deduction, ComponentCalculationType.PercentageOfBasic, 6, false, true),
+                ("PF_ER", "Provident Fund (Employer)", ComponentType.EmployerContribution, ComponentCalculationType.PercentageOfBasic, 7, false, true),
+                ("PT", "Professional Tax", ComponentType.Deduction, ComponentCalculationType.FixedAmount, 8, false, true),
+                ("TDS", "Income Tax / TDS", ComponentType.Deduction, ComponentCalculationType.ManualAmount, 9, false, true),
+                ("ESI_EE", "ESI (Employee)", ComponentType.Deduction, ComponentCalculationType.PercentageOfGross, 10, false, true),
+                ("ESI_ER", "ESI (Employer)", ComponentType.EmployerContribution, ComponentCalculationType.PercentageOfGross, 11, false, true)
+            };
+
+            var existingComponents = await context.SalaryComponents
+                .Where(c => c.OrganizationId == org.Id)
+                .ToListAsync();
+
+            var compMap = existingComponents.ToDictionary(c => c.Code, StringComparer.OrdinalIgnoreCase);
+            var newComponentsAdded = false;
+
+            foreach (var sc in standardComponents)
+            {
+                if (!compMap.TryGetValue(sc.Code, out var comp))
+                {
+                    comp = new SalaryComponent
+                    {
+                        OrganizationId = org.Id,
+                        Code = sc.Code,
+                        Name = sc.Name,
+                        Type = sc.Type,
+                        CalculationType = sc.CalcType,
+                        CalculationOrder = sc.Order,
+                        IsTaxable = sc.IsTaxable,
+                        IsStatutory = sc.IsStatutory,
+                        IsActive = true
+                    };
+                    context.SalaryComponents.Add(comp);
+                    compMap[sc.Code] = comp;
+                    newComponentsAdded = true;
+                }
+            }
+
+            if (newComponentsAdded)
+            {
+                await context.SaveChangesAsync();
+            }
+
+            // 3. Ensure Statutory Rules exist
+            if (!await context.StatutoryRules.AnyAsync(r => r.OrganizationId == org.Id && r.RuleType == StatutoryRuleType.ProvidentFund))
+            {
+                context.StatutoryRules.Add(new StatutoryRule
+                {
+                    OrganizationId = org.Id,
+                    RuleType = StatutoryRuleType.ProvidentFund,
+                    Version = 1,
+                    EffectiveFrom = new DateOnly(2026, 4, 1),
+                    ConfigurationJson = "{\"EmployeeRate\":0.12,\"EmployerEPSRate\":0.0833,\"EmployerEPFRate\":0.0367,\"WageCeiling\":15000,\"EnforceWageCeiling\":true}",
+                    IsActive = true
+                });
+            }
+
+            if (!await context.StatutoryRules.AnyAsync(r => r.OrganizationId == org.Id && r.RuleType == StatutoryRuleType.ESI))
+            {
+                context.StatutoryRules.Add(new StatutoryRule
+                {
+                    OrganizationId = org.Id,
+                    RuleType = StatutoryRuleType.ESI,
+                    Version = 1,
+                    EffectiveFrom = new DateOnly(2026, 4, 1),
+                    ConfigurationJson = "{\"EmployeeRate\":0.0075,\"EmployerRate\":0.0325,\"GrossWageLimit\":21000}",
+                    IsActive = true
+                });
+            }
+
+            if (!await context.StatutoryRules.AnyAsync(r => r.OrganizationId == org.Id && r.RuleType == StatutoryRuleType.ProfessionalTax))
+            {
+                context.StatutoryRules.Add(new StatutoryRule
+                {
+                    OrganizationId = org.Id,
+                    RuleType = StatutoryRuleType.ProfessionalTax,
+                    Version = 1,
+                    EffectiveFrom = new DateOnly(2026, 4, 1),
+                    ConfigurationJson = "{\"StateCode\":\"MH\",\"Brackets\":[{\"MinGross\":0,\"MaxGross\":7500,\"MonthlyTax\":0},{\"MinGross\":7501,\"MaxGross\":10000,\"MonthlyTax\":175},{\"MinGross\":10001,\"MaxGross\":999999999,\"MonthlyTax\":200,\"FebruaryTax\":300}]}",
+                    IsActive = true
+                });
+            }
+
+            // 4. Ensure Payroll Policy exists
+            if (!await context.PayrollPolicies.AnyAsync(p => p.OrganizationId == org.Id))
+            {
+                context.PayrollPolicies.Add(new PayrollPolicy
+                {
+                    OrganizationId = org.Id,
+                    ProrationBasis = SalaryProrationBasis.ActualCalendarDays,
+                    FixedProrationDays = 30,
+                    LOPBasis = LOPCalculationBasis.CalendarDays,
+                    FixedLOPDays = 30,
+                    OTBasis = OvertimeBasis.BasicSalary,
+                    OTMultiplier = 1.5m,
+                    StandardMonthlyWorkingHours = 160m,
+                    RoundingRule = RoundingRule.TwoDecimals,
+                    ConsiderHolidaysInLOP = false,
+                    ConsiderWeekendsInLOP = false
+                });
+            }
+
+            await context.SaveChangesAsync();
+
+            // 5. Ensure Employees have valid salary structures
+            var employees = await context.Employees
+                .Include(e => e.ContactDetails)
+                .Include(e => e.ProfessionalDetails)
+                .Include(e => e.SalaryStructures.Where(s => s.IsActive))
+                .Where(e => e.OrganizationId == org.Id && e.IsActive)
+                .ToListAsync();
+
+            var basicComp = compMap["BASIC"];
+            var hraComp = compMap["HRA"];
+            var saComp = compMap["SA"];
+
+            foreach (var emp in employees)
+            {
+                // Ensure employee has state set for PT
+                if (emp.ContactDetails != null && string.IsNullOrWhiteSpace(emp.ContactDetails.State))
+                {
+                    emp.ContactDetails.State = "MH";
+                }
+
+                if (!emp.SalaryStructures.Any())
+                {
+                    // Assign default salary structure
+                    decimal monthlyGross = emp.EmployeeCode == "ADMIN001" ? 80000m : 50000m;
+                    decimal annualCtc = monthlyGross * 12m;
+                    decimal basicAmt = monthlyGross * 0.50m;
+                    decimal hraAmt = monthlyGross * 0.20m;
+                    decimal saAmt = monthlyGross - basicAmt - hraAmt;
+
+                    var structure = new EmployeeSalaryStructure
+                    {
+                        OrganizationId = org.Id,
+                        EmployeeId = emp.Id,
+                        Version = 1,
+                        EffectiveFrom = new DateOnly(2026, 1, 1),
+                        MonthlyGrossSalary = monthlyGross,
+                        AnnualCTC = annualCtc,
+                        RevisionReason = "Initial Compensation Package",
+                        IsActive = true,
+                        Items = new List<EmployeeSalaryStructureItem>
+                        {
+                            new()
+                            {
+                                SalaryComponentId = basicComp.Id,
+                                MonthlyAmount = basicAmt,
+                                AnnualAmount = basicAmt * 12m,
+                                PercentageRate = 50.0m
+                            },
+                            new()
+                            {
+                                SalaryComponentId = hraComp.Id,
+                                MonthlyAmount = hraAmt,
+                                AnnualAmount = hraAmt * 12m,
+                                PercentageRate = 20.0m
+                            },
+                            new()
+                            {
+                                SalaryComponentId = saComp.Id,
+                                MonthlyAmount = saAmt,
+                                AnnualAmount = saAmt * 12m,
+                                PercentageRate = 30.0m
+                            }
+                        }
+                    };
+
+                    context.EmployeeSalaryStructures.Add(structure);
+                }
+            }
+
+            await context.SaveChangesAsync();
+
+            // 6. Seed sample attendance for current active employees (September 2026)
+            var academicYear = await context.AcademicYears.FirstOrDefaultAsync(ay => ay.OrganizationId == org.Id && ay.IsActive);
+            if (academicYear != null)
+            {
+                var sampleMonth = 9;
+                var sampleYear = 2026;
+                var startPeriod = new DateTimeOffset(new DateTime(sampleYear, sampleMonth, 1, 0, 0, 0, DateTimeKind.Utc));
+                var endPeriod = new DateTimeOffset(new DateTime(sampleYear, sampleMonth, 30, 23, 59, 59, DateTimeKind.Utc));
+
+                foreach (var emp in employees)
+                {
+                    var existingPunches = await context.EmployeeAttendances
+                        .AnyAsync(a => a.EmployeeId == emp.Id && a.InTime >= startPeriod && a.InTime <= endPeriod);
+
+                    if (!existingPunches && emp.ProfessionalDetails != null && emp.ProfessionalDetails.LocationId.HasValue && emp.ProfessionalDetails.ShiftId.HasValue)
+                    {
+                        var attendanceList = new List<EmployeeAttendance>();
+                        for (int day = 1; day <= 25; day++)
+                        {
+                            var punchDate = new DateTime(sampleYear, sampleMonth, day);
+                            if (punchDate.DayOfWeek == DayOfWeek.Saturday || punchDate.DayOfWeek == DayOfWeek.Sunday)
+                            {
+                                continue;
+                            }
+
+                            attendanceList.Add(new EmployeeAttendance
+                            {
+                                OrganizationId = org.Id,
+                                EmployeeId = emp.Id,
+                                LocationId = emp.ProfessionalDetails.LocationId.Value,
+                                ShiftId = emp.ProfessionalDetails.ShiftId.Value,
+                                AcademicYearId = academicYear.Id,
+                                InTime = new DateTimeOffset(punchDate.AddHours(9), TimeSpan.Zero),
+                                OutTime = new DateTimeOffset(punchDate.AddHours(18), TimeSpan.Zero),
+                                DayTotal = 9.0m,
+                                Status = 1, // Present
+                                PunchCount = 2
+                            });
+                        }
+
+                        if (attendanceList.Any())
+                        {
+                            await context.EmployeeAttendances.AddRangeAsync(attendanceList);
+                        }
+                    }
+                }
+                await context.SaveChangesAsync();
+            }
+        }
+    }
+
+    private static async Task HealPayrollPeriodsAsync(ApplicationDbContext context)
+    {
+        var periods = await context.PayrollPeriods.ToListAsync();
+        bool modified = false;
+        foreach (var period in periods)
+        {
+            if (period.StartDate.Year <= 1)
+            {
+                period.StartDate = new DateOnly(period.Year, period.Month, 1);
+                modified = true;
+            }
+            if (period.EndDate.Year <= 1)
+            {
+                period.EndDate = new DateOnly(period.Year, period.Month, DateTime.DaysInMonth(period.Year, period.Month));
+                modified = true;
+            }
+            if (period.Status == PayrollPeriodStatus.Calculating)
+            {
+                period.Status = PayrollPeriodStatus.Draft;
+                modified = true;
+            }
+        }
+        if (modified)
+        {
+            await context.SaveChangesAsync();
+        }
     }
 }

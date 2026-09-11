@@ -41,6 +41,15 @@ public static class ClaimsHelper
     }
 
     /// <summary>
+    /// Gets the Organization ID from token claim, or falls back to defaultValue (e.g. 1).
+    /// </summary>
+    public static int GetOrganizationIdOrDefault(this ClaimsPrincipal user, int defaultValue = 1)
+    {
+        var claim = user.FindFirst("OrganizationId")?.Value;
+        return (int.TryParse(claim, out var id) && id > 0) ? id : defaultValue;
+    }
+
+    /// <summary>
     /// Gets the employee code from the token claim.
     /// </summary>
     public static string GetEmployeeCode(this ClaimsPrincipal user)
