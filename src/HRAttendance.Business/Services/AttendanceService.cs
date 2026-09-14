@@ -524,6 +524,7 @@ public class AttendanceService : IAttendanceService
             {
                 Id = r.Id,
                 AttendanceId = r.AttendanceId,
+                EmployeeId = r.EmployeeId,
                 RequestedInTime = r.RequestedInTime,
                 RequestedOutTime = r.RequestedOutTime,
                 EmployeeRemark = r.EmployeeRemark,
@@ -548,6 +549,7 @@ public class AttendanceService : IAttendanceService
             {
                 Id = r.Id,
                 AttendanceId = r.AttendanceId,
+                EmployeeId = r.EmployeeId,
                 RequestedInTime = r.RequestedInTime,
                 RequestedOutTime = r.RequestedOutTime,
                 EmployeeRemark = r.EmployeeRemark,
