@@ -74,7 +74,7 @@ public class AttendanceRegularizationRequestDto
 {
     public int Id { get; set; }
     public int AttendanceId { get; set; }
-
+    public int EmployeeId { get; set; }
     public DateTimeOffset? RequestedInTime { get; set; }
 
     public DateTimeOffset? RequestedOutTime { get; set; }
