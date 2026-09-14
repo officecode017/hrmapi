@@ -31,6 +31,8 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 appsettings.Production.json
+appsettings.Local.json
+appsettings.*.local.json
 *.pfx
 *.pem
 

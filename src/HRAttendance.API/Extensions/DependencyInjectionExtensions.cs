@@ -72,6 +72,10 @@ public static class DependencyInjectionExtensions
         services.AddScoped<HRAttendance.Business.Interfaces.Payroll.IPayslipPdfGenerator, HRAttendance.Business.Services.Payroll.QuestPdfGenerator>();
         services.AddScoped<HRAttendance.Business.Interfaces.Payroll.IBankExportService, HRAttendance.Business.Services.Payroll.BankExportService>();
 
+        // Document Management & Azure Blob Storage
+        services.AddScoped<HRAttendance.Business.Interfaces.Documents.IAzureBlobStorageService, HRAttendance.Business.Services.Documents.AzureBlobStorageService>();
+        services.AddScoped<HRAttendance.Business.Interfaces.Documents.IEmployeeDocumentService, HRAttendance.Business.Services.Documents.EmployeeDocumentService>();
+
         return services;
     }
 }

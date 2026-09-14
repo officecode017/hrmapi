@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using HRAttendance.API.Extensions;
 using HRAttendance.Business.BusinessRules;
+using HRAttendance.Business.Interfaces.Documents;
 using HRAttendance.Business.Interfaces.Payroll;
 using HRAttendance.Data;
 using HRAttendance.Data.DTOs.Common;
@@ -18,15 +19,21 @@ public class PayslipsController : ControllerBase
     private readonly ApplicationDbContext _context;
     private readonly IPayslipPdfGenerator _pdfGenerator;
     private readonly IPayslipProjectionService _projectionService;
+    private readonly IEmployeeDocumentService _documentService;
+    private readonly ILogger<PayslipsController> _logger;
 
     public PayslipsController(
         ApplicationDbContext context,
         IPayslipPdfGenerator pdfGenerator,
-        IPayslipProjectionService projectionService)
+        IPayslipProjectionService projectionService,
+        IEmployeeDocumentService documentService,
+        ILogger<PayslipsController> logger)
     {
         _context = context;
         _pdfGenerator = pdfGenerator;
         _projectionService = projectionService;
+        _documentService = documentService;
+        _logger = logger;
     }
 
     /// <summary>
@@ -215,6 +222,16 @@ public class PayslipsController : ControllerBase
         payslip.Status = PayslipStatus.Published;
         await _context.SaveChangesAsync(cancellationToken);
 
+        // Auto-archive salary slip PDF into employee document storage
+        try
+        {
+            await _documentService.ArchivePublishedPayslipAsync(payslip.Id, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to auto-archive payslip {PayslipId} into employee storage during publish.", payslip.Id);
+        }
+
         return Ok(ApiResponseDto<bool>.Ok(true, "Payslip published successfully."));
     }
 
@@ -313,6 +330,19 @@ public class PayslipsController : ControllerBase
             p.Status = PayslipStatus.Published;
         }
         await _context.SaveChangesAsync(cancellationToken);
+
+        // Auto-archive each payslip PDF into the employee's document storage
+        foreach (var p in payslips)
+        {
+            try
+            {
+                await _documentService.ArchivePublishedPayslipAsync(p.Id, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to auto-archive payslip {PayslipId} into employee storage during batch publish.", p.Id);
+            }
+        }
 
         return Ok(ApiResponseDto<int>.Ok(payslips.Count, $"{payslips.Count} payslips published successfully."));
     }

@@ -5,6 +5,7 @@ using HRAttendance.API.Middleware;
 using HRAttendance.API.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: true);
 
 // 1. Add Infrastructure, Business, Auth and Swagger extensions
 builder.Services

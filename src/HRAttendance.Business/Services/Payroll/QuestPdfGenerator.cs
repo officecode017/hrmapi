@@ -158,7 +158,7 @@ public class QuestPdfGenerator : IPayslipPdfGenerator
         // Load organization logo if available
         var logoBytes = LoadCompanyLogo(org.LogoUrl);
 
-        var document = Document.Create(container =>
+        var document = QuestPDF.Fluent.Document.Create(container =>
         {
             container.Page(page =>
             {

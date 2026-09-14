@@ -9,6 +9,7 @@ using HRAttendance.Data.Models.Leave;
 using HRAttendance.Data.Models.Overtime;
 using HRAttendance.Data.Models.Notification;
 using HRAttendance.Data.Models.Payroll;
+using HRAttendance.Data.Models.Document;
 
 namespace HRAttendance.Data;
 
@@ -78,6 +79,10 @@ public class ApplicationDbContext : DbContext
     public DbSet<PayslipAccessLog> PayslipAccessLogs => Set<PayslipAccessLog>();
     public DbSet<PayrollPayment> PayrollPayments => Set<PayrollPayment>();
     public DbSet<BankExportBatch> BankExportBatches => Set<BankExportBatch>();
+
+    // Document Management
+    public DbSet<EmployeeFolder> EmployeeFolders => Set<EmployeeFolder>();
+    public DbSet<EmployeeDocument> EmployeeDocuments => Set<EmployeeDocument>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

@@ -69,4 +69,6 @@ public class Employee : AuditableEntity
     public virtual ICollection<PayrollAdjustment> PayrollAdjustments { get; set; } = new List<PayrollAdjustment>();
     public virtual ICollection<PayrollArrear> PayrollArrears { get; set; } = new List<PayrollArrear>();
     public virtual ICollection<Payslip> Payslips { get; set; } = new List<Payslip>();
+    public virtual ICollection<HRAttendance.Data.Models.Document.EmployeeFolder> EmployeeFolders { get; set; } = new List<HRAttendance.Data.Models.Document.EmployeeFolder>();
+    public virtual ICollection<HRAttendance.Data.Models.Document.EmployeeDocument> EmployeeDocuments { get; set; } = new List<HRAttendance.Data.Models.Document.EmployeeDocument>();
 }
