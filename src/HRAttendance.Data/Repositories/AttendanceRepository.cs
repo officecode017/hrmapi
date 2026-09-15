@@ -21,10 +21,18 @@ public class AttendanceRepository : IAttendanceRepository
             .FirstOrDefaultAsync(a => a.Id == id, cancellationToken);
     }
 
-    public async Task<EmployeeAttendance?> GetTodayAttendanceAsync(int employeeId, DateOnly date, CancellationToken cancellationToken = default)
+    public Task<EmployeeAttendance?> GetTodayAttendanceAsync(int employeeId, DateOnly date, CancellationToken cancellationToken = default)
     {
-        var startOfDay = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), TimeSpan.Zero);
-        var endOfDay = new DateTimeOffset(date.ToDateTime(TimeOnly.MaxValue), TimeSpan.Zero);
+        return GetTodayAttendanceAsync(employeeId, date, null, cancellationToken);
+    }
+
+    public async Task<EmployeeAttendance?> GetTodayAttendanceAsync(int employeeId, DateOnly date, TimeZoneInfo? timeZone, CancellationToken cancellationToken = default)
+    {
+        var offset = timeZone != null
+            ? timeZone.GetUtcOffset(date.ToDateTime(TimeOnly.MinValue))
+            : TimeSpan.Zero;
+        var startOfDay = new DateTimeOffset(date.ToDateTime(TimeOnly.MinValue), offset);
+        var endOfDay = new DateTimeOffset(date.ToDateTime(TimeOnly.MaxValue), offset);
 
         return await _context.EmployeeAttendances
             .Include(a => a.Shift)

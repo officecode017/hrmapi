@@ -7,6 +7,7 @@ using HRAttendance.Data.DTOs.Attendance;
 using HRAttendance.Data.DTOs.Common;
 using HRAttendance.Data.Interfaces;
 using HRAttendance.Data.Models.Attendance;
+using HRAttendance.Data.Models.Organization;
 using HRAttendance.Data.Models.Overtime;
 
 namespace HRAttendance.Business.Services;
@@ -29,15 +30,9 @@ public class AttendanceService : IAttendanceService
 
     public async Task<ApiResponseDto<AttendanceDto>> CheckInAsync(CheckInRequestDto request, CancellationToken cancellationToken = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var existing = await _attendanceRepository.GetTodayAttendanceAsync(request.EmployeeId, today, cancellationToken);
-        if (existing != null)
-        {
-            return ApiResponseDto<AttendanceDto>.Fail("You have already checked in today.");
-        }
-
         var employee = await _context.Employees
             .Include(e => e.ProfessionalDetails)
+                .ThenInclude(p => p!.Location)
             .Include(e => e.EmployeeRoles)
             .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
 
@@ -46,21 +41,7 @@ public class AttendanceService : IAttendanceService
             return ApiResponseDto<AttendanceDto>.Fail("Employee not found.");
         }
 
-        var now = DateTimeOffset.UtcNow;
-
-        // 1. BUSINESS RULE: Check if employee is on Approved Leave for today
-        var onApprovedLeave = await _context.LeaveApplications
-            .AnyAsync(l => l.EmployeeId == request.EmployeeId &&
-                           l.Status == LeaveStatus.Approved &&
-                           l.LeaveFrom <= now &&
-                           l.LeaveTo >= now, cancellationToken);
-
-        if (onApprovedLeave)
-        {
-            return ApiResponseDto<AttendanceDto>.Fail("Cannot check in: You have an approved leave scheduled for today.");
-        }
-
-        // 2. Resolve Shift
+        // Resolve Shift
         var shiftId = employee.ProfessionalDetails?.ShiftId;
         var shift = shiftId.HasValue 
             ? await _context.Shifts.FirstOrDefaultAsync(s => s.Id == shiftId.Value, cancellationToken)
@@ -80,7 +61,33 @@ public class AttendanceService : IAttendanceService
         }
 
         var targetLocationId = request.LocationId > 0 ? request.LocationId : (employee.ProfessionalDetails?.LocationId ?? shift.LocationId);
-        var location = await _context.Locations.FirstOrDefaultAsync(l => l.Id == targetLocationId, cancellationToken);
+        var location = (targetLocationId == employee.ProfessionalDetails?.LocationId && employee.ProfessionalDetails?.Location != null)
+            ? employee.ProfessionalDetails.Location
+            : await _context.Locations.FirstOrDefaultAsync(l => l.Id == targetLocationId, cancellationToken);
+
+        // Resolve location timezone for local date and time calculations
+        var timeZone = ResolveTimeZone(location);
+        var now = DateTimeOffset.UtcNow;
+        var localNow = TimeZoneInfo.ConvertTime(now, timeZone);
+        var localToday = DateOnly.FromDateTime(localNow.DateTime);
+
+        var existing = await _attendanceRepository.GetTodayAttendanceAsync(request.EmployeeId, localToday, timeZone, cancellationToken);
+        if (existing != null)
+        {
+            return ApiResponseDto<AttendanceDto>.Fail("You have already checked in today.");
+        }
+
+        // 1. BUSINESS RULE: Check if employee is on Approved Leave for today
+        var onApprovedLeave = await _context.LeaveApplications
+            .AnyAsync(l => l.EmployeeId == request.EmployeeId &&
+                           l.Status == LeaveStatus.Approved &&
+                           l.LeaveFrom <= now &&
+                           l.LeaveTo >= now, cancellationToken);
+
+        if (onApprovedLeave)
+        {
+            return ApiResponseDto<AttendanceDto>.Fail("Cannot check in: You have an approved leave scheduled for today.");
+        }
 
         // 3. BUSINESS RULE: Geofence Validation (Optional / Configurable per campus location)
         if (location != null && location.EnforceGeofence && location.Latitude.HasValue && location.Longitude.HasValue && location.Radius.HasValue && location.Radius.Value > 0)
@@ -98,12 +105,11 @@ public class AttendanceService : IAttendanceService
             }
         }
 
-
         // 4. BUSINESS RULE: Check if today is an official Holiday
         string? dynamicRemark = request.Remark;
         var holiday = await _context.Holidays
             .FirstOrDefaultAsync(h => h.OrganizationId == employee.OrganizationId &&
-                                      h.Date == today &&
+                                      h.Date == localToday &&
                                       (h.LocationId == null || h.LocationId == targetLocationId), cancellationToken);
         if (holiday != null)
         {
@@ -114,7 +120,7 @@ public class AttendanceService : IAttendanceService
 
         // 5. BUSINESS RULE: Check if today is an assigned Off-Day / Weekend
         var primaryRoleId = employee.EmployeeRoles.FirstOrDefault()?.RoleId ?? 0;
-        var dayOfWeek = DateTime.UtcNow.DayOfWeek;
+        var dayOfWeek = localNow.DayOfWeek;
         var offDay = await _context.OffDays
             .FirstOrDefaultAsync(o => o.OrganizationId == employee.OrganizationId &&
                                       o.AcademicYearId == academicYear.Id &&
@@ -128,9 +134,9 @@ public class AttendanceService : IAttendanceService
                 : $"{dynamicRemark} [Worked on Off-Day]";
         }
 
-        var currentTime = TimeOnly.FromTimeSpan(now.TimeOfDay);
+        var currentTime = TimeOnly.FromTimeSpan(localNow.TimeOfDay);
 
-        // Calculate Late arrival
+        // Calculate Late arrival in local timezone
         var shiftGraceThreshold = shift.InTime.AddMinutes(shift.GraceMinutes);
         var status = currentTime > shiftGraceThreshold ? (int)AttendanceStatus.Late : (int)AttendanceStatus.Present;
 
@@ -154,15 +160,30 @@ public class AttendanceService : IAttendanceService
         };
 
         await _attendanceRepository.AddAsync(attendance, cancellationToken);
-        _logger.LogInformation("Employee {EmployeeId} checked in with status {Status} at {InTime}", request.EmployeeId, (AttendanceStatus)status, now);
+        _logger.LogInformation("Employee {EmployeeId} checked in with status {Status} at {InTime} (Local: {LocalNow})", request.EmployeeId, (AttendanceStatus)status, now, localNow);
 
         return await MapToDtoAsync(attendance.Id, cancellationToken);
     }
 
     public async Task<ApiResponseDto<AttendanceDto>> CheckOutAsync(CheckOutRequestDto request, CancellationToken cancellationToken = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var attendance = await _attendanceRepository.GetTodayAttendanceAsync(request.EmployeeId, today, cancellationToken);
+        var employee = await _context.Employees
+            .Include(e => e.ProfessionalDetails)
+                .ThenInclude(p => p!.Location)
+            .FirstOrDefaultAsync(e => e.Id == request.EmployeeId, cancellationToken);
+
+        if (employee == null)
+        {
+            return ApiResponseDto<AttendanceDto>.Fail("Employee not found.");
+        }
+
+        var location = employee.ProfessionalDetails?.Location;
+        var timeZone = ResolveTimeZone(location);
+        var now = DateTimeOffset.UtcNow;
+        var localNow = TimeZoneInfo.ConvertTime(now, timeZone);
+        var localToday = DateOnly.FromDateTime(localNow.DateTime);
+
+        var attendance = await _attendanceRepository.GetTodayAttendanceAsync(request.EmployeeId, localToday, timeZone, cancellationToken);
         if (attendance == null)
         {
             return ApiResponseDto<AttendanceDto>.Fail("No check-in record found for today.");
@@ -173,7 +194,6 @@ public class AttendanceService : IAttendanceService
             return ApiResponseDto<AttendanceDto>.Fail("You have already checked out today.");
         }
 
-        var now = DateTimeOffset.UtcNow;
         attendance.OutTime = now;
         attendance.OutTimeLatitude = request.Latitude;
         attendance.OutTimeLongitude = request.Longitude;
@@ -195,14 +215,14 @@ public class AttendanceService : IAttendanceService
 
         attendance.PunchCount = (attendance.PunchCount ?? 1) + 1;
 
-        // 6. BUSINESS RULE: Auto-Calculate Overtime on Checkout
+        // 6. BUSINESS RULE: Auto-Calculate Overtime on Checkout in local timezone
         var shift = await _context.Shifts.FirstOrDefaultAsync(s => s.Id == attendance.ShiftId, cancellationToken);
         var otSetting = await _context.OTSettings
             .FirstOrDefaultAsync(o => o.OrganizationId == attendance.OrganizationId && o.IsActive && o.IsOverTimeEnabled, cancellationToken);
 
         if (shift != null && otSetting != null)
         {
-            var currentTime = TimeOnly.FromTimeSpan(now.TimeOfDay);
+            var currentTime = TimeOnly.FromTimeSpan(localNow.TimeOfDay);
             var otThresholdTime = shift.OutTime.AddMinutes(otSetting.OTStartAfterMinutes);
 
             if (currentTime > otThresholdTime)
@@ -218,7 +238,7 @@ public class AttendanceService : IAttendanceService
                         OrganizationId = attendance.OrganizationId,
                         EmployeeId = attendance.EmployeeId,
                         OTSettingId = otSetting.Id,
-                        OTDate = today,
+                        OTDate = localToday,
                         ActualOutTime = now,
                         OTHours = Math.Round(otHours, 2),
                         MultiplierApplied = otSetting.Multiplier,
@@ -232,7 +252,7 @@ public class AttendanceService : IAttendanceService
         }
 
         await _attendanceRepository.UpdateAsync(attendance, cancellationToken);
-        _logger.LogInformation("Employee {EmployeeId} checked out. Day total: {DayTotal} hours", request.EmployeeId, attendance.DayTotal);
+        _logger.LogInformation("Employee {EmployeeId} checked out. Day total: {DayTotal} hours at {OutTime} (Local: {LocalNow})", request.EmployeeId, attendance.DayTotal, now, localNow);
 
         return await MapToDtoAsync(attendance.Id, cancellationToken);
     }
@@ -261,8 +281,18 @@ public class AttendanceService : IAttendanceService
 
     public async Task<ApiResponseDto<AttendanceDto?>> GetTodayStatusAsync(int employeeId, CancellationToken cancellationToken = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var attendance = await _attendanceRepository.GetTodayAttendanceAsync(employeeId, today, cancellationToken);
+        var employee = await _context.Employees
+            .Include(e => e.ProfessionalDetails)
+                .ThenInclude(p => p!.Location)
+            .FirstOrDefaultAsync(e => e.Id == employeeId, cancellationToken);
+
+        var location = employee?.ProfessionalDetails?.Location;
+        var timeZone = ResolveTimeZone(location);
+        var now = DateTimeOffset.UtcNow;
+        var localNow = TimeZoneInfo.ConvertTime(now, timeZone);
+        var localToday = DateOnly.FromDateTime(localNow.DateTime);
+
+        var attendance = await _attendanceRepository.GetTodayAttendanceAsync(employeeId, localToday, timeZone, cancellationToken);
         if (attendance == null)
         {
             return ApiResponseDto<AttendanceDto?>.Ok(new AttendanceDto
@@ -738,5 +768,47 @@ public class AttendanceService : IAttendanceService
 
         var c = 2.0 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1.0 - a));
         return R * c;
+    }
+
+    public static TimeZoneInfo ResolveTimeZone(Location? location)
+    {
+        if (!string.IsNullOrWhiteSpace(location?.TimeZoneValue))
+        {
+            var tzId = location.TimeZoneValue.Trim();
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(tzId);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                if (TimeZoneInfo.TryConvertWindowsIdToIanaId(tzId, out var ianaId))
+                {
+                    try { return TimeZoneInfo.FindSystemTimeZoneById(ianaId); } catch { }
+                }
+                if (TimeZoneInfo.TryConvertIanaIdToWindowsId(tzId, out var winId))
+                {
+                    try { return TimeZoneInfo.FindSystemTimeZoneById(winId); } catch { }
+                }
+            }
+            catch (InvalidTimeZoneException)
+            {
+            }
+        }
+
+        try
+        {
+            return TimeZoneInfo.FindSystemTimeZoneById("India Standard Time");
+        }
+        catch
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById("Asia/Kolkata");
+            }
+            catch
+            {
+                return TimeZoneInfo.Local ?? TimeZoneInfo.Utc;
+            }
+        }
     }
 }
